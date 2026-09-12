@@ -1,0 +1,11 @@
+[functions.create-order]
+verify_jwt = false
+
+[functions.advance-tracking]
+verify_jwt = false
+
+[functions.movepayment]
+verify_jwt = false
+
+[functions.movepayment-webhook]
+verify_jwt = false
