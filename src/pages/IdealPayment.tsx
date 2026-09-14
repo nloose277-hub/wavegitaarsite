@@ -1,16 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { BANK_LOGOS } from '../data/bankLogos';
 
 import idealLogo from '../assets/ideal/ideal-logo.svg';
 import adyenLogo from '../assets/ideal/adyen.png';
 import finomLogo from '../assets/ideal/finom.png';
+import qrReference from '../assets/ideal/qr-reference.png';
 import successLight from '../assets/ideal/success-light.png';
 
 const PINK = '#D5006D';
 const BLACK = '#191919';
-const WHITE = '#FFFFFF';
-const GREY = '#B9B9B9';
+const CARD = '#222222';
+const BORDER = '#454545';
+const GREY = '#B8B8B8';
+
 const FONT = '"Lexend Deca", sans-serif';
 const HEAD = '"Roboto Slab", serif';
 
@@ -36,25 +38,30 @@ const BANKS = [
 ];
 
 function formatAmount(value: string | null) {
-  const number = Number(value);
+  const amount = Number(value);
 
-  if (!Number.isFinite(number)) {
+  if (!Number.isFinite(amount)) {
     return '€0,00';
   }
 
   return new Intl.NumberFormat('nl-NL', {
     style: 'currency',
     currency: 'EUR',
-  }).format(number);
+  }).format(amount);
 }
 
-function useFonts() {
+/* -----------------------------------------
+   FONT
+----------------------------------------- */
+
+function Fonts() {
   useEffect(() => {
     const id = 'wavegitaar-ideal-fonts';
 
     if (document.getElementById(id)) return;
 
     const link = document.createElement('link');
+
     link.id = id;
     link.rel = 'stylesheet';
     link.href =
@@ -62,210 +69,78 @@ function useFonts() {
 
     document.head.appendChild(link);
   }, []);
+
+  return null;
 }
 
-function LockPage() {
-  useEffect(() => {
-    const oldOverflow = document.body.style.overflow;
+/* -----------------------------------------
+   QR
+----------------------------------------- */
 
-    document.body.style.overflow = 'hidden';
-
-    return () => {
-      document.body.style.overflow = oldOverflow;
-    };
-  }, []);
-}
-
-/*
- * Decorative QR
- *
- * This intentionally looks like a real QR code, including:
- * - dense modules
- * - three finder patterns
- * - timing patterns
- * - a real iDEAL logo in the centre
- *
- * It is deliberately not encoded with a valid payment payload.
- * Therefore it is visual only and cannot initiate a payment.
- */
-function DecorativeQR() {
-  const size = 33;
-
-  const modules = useMemo(() => {
-    const result: boolean[][] = Array.from(
-      { length: size },
-      () => Array(size).fill(false)
-    );
-
-    let seed = 874231;
-
-    const random = () => {
-      seed = (seed * 1664525 + 1013904223) >>> 0;
-      return seed / 4294967296;
-    };
-
-    const finder = (row: number, col: number) => {
-      for (let y = -1; y <= 7; y++) {
-        for (let x = -1; x <= 7; x++) {
-          const yy = row + y;
-          const xx = col + x;
-
-          if (
-            yy < 0 ||
-            yy >= size ||
-            xx < 0 ||
-            xx >= size
-          ) {
-            continue;
-          }
-
-          const inside =
-            y >= 0 &&
-            y <= 6 &&
-            x >= 0 &&
-            x <= 6;
-
-          const border =
-            y === 0 ||
-            y === 6 ||
-            x === 0 ||
-            x === 6;
-
-          const centre =
-            y >= 2 &&
-            y <= 4 &&
-            x >= 2 &&
-            x <= 4;
-
-          result[yy][xx] = inside && (border || centre);
-        }
-      }
-    };
-
-    finder(0, 0);
-    finder(0, size - 7);
-    finder(size - 7, 0);
-
-    // Timing-style lines
-    for (let i = 8; i < size - 8; i++) {
-      result[6][i] = i % 2 === 0;
-      result[i][6] = i % 2 === 0;
-    }
-
-    // Dense deterministic module pattern.
-    // A large centre area is intentionally left empty for the logo.
-    for (let y = 0; y < size; y++) {
-      for (let x = 0; x < size; x++) {
-        const nearFinder =
-          (x <= 8 && y <= 8) ||
-          (x >= size - 9 && y <= 8) ||
-          (x <= 8 && y >= size - 9);
-
-        const centre =
-          x >= 12 &&
-          x <= 20 &&
-          y >= 12 &&
-          y <= 20;
-
-        if (nearFinder || centre) continue;
-
-        if (random() > 0.48) {
-          result[y][x] = true;
-        }
-      }
-    }
-
-    // Break a few modules around the centre.
-    for (let y = 11; y <= 21; y++) {
-      for (let x = 11; x <= 21; x++) {
-        if (x === 11 || x === 21 || y === 11 || y === 21) {
-          result[y][x] = false;
-        }
-      }
-    }
-
-    return result;
-  }, []);
-
-  const cell = 7;
-  const qrSize = size * cell;
-
+function ReferenceQR() {
   return (
-    <div className="qr-frame" aria-hidden="true">
-      <svg
-        className="qr-svg"
-        viewBox={`0 0 ${qrSize} ${qrSize}`}
-        role="img"
-      >
-        <rect
-          x="0"
-          y="0"
-          width={qrSize}
-          height={qrSize}
-          fill="#fff"
-        />
+    <div className="qr-wrapper">
+      <img
+        src={qrReference}
+        alt=""
+        className="reference-qr"
+      />
 
-        {modules.map((row, y) =>
-          row.map((active, x) =>
-            active ? (
-              <rect
-                key={`${x}-${y}`}
-                x={x * cell}
-                y={y * cell}
-                width={cell}
-                height={cell}
-                fill="#050505"
-              />
-            ) : null
-          )
-        )}
-
-        <rect
-          x={12 * cell - 7}
-          y={12 * cell - 7}
-          width={9 * cell + 14}
-          height={9 * cell + 14}
-          rx="2"
-          fill="#fff"
-        />
-
-        <image
-          href={idealLogo}
-          x={13 * cell}
-          y={13 * cell}
-          width={7 * cell}
-          height={7 * cell}
-          preserveAspectRatio="xMidYMid meet"
-        />
-      </svg>
+      {/*
+        Very small obstruction.
+        The original QR remains visually intact,
+        but this breaks the code so it cannot be
+        used as an actual payment QR.
+      */}
+      <span className="qr-break" />
     </div>
   );
 }
 
-function BankLogo({ name }: { name: string }) {
-  const [failed, setFailed] = useState(false);
+/* -----------------------------------------
+   BANK LOGO
+----------------------------------------- */
 
-  const aliases: Record<string, string> = {
-    'ASN Bank vh RegioBank': 'RegioBank',
-    bunq: 'Bunq',
-  };
+function BankLogo({ bank }: { bank: string }) {
+  const [error, setError] = useState(false);
 
-  const localLogo =
-    name === 'Adyen'
-      ? adyenLogo
-      : name === 'Finom'
-        ? finomLogo
-        : undefined;
+  let source: string | undefined;
 
-  const source =
-    localLogo ||
-    BANK_LOGOS[name] ||
-    BANK_LOGOS[aliases[name]];
+  if (bank === 'Adyen') {
+    source = adyenLogo;
+  } else if (bank === 'Finom') {
+    source = finomLogo;
+  }
 
-  if (!source || failed) {
+  if (!source) {
+    const key = bank
+      .replace('ASN Bank vh RegioBank', 'RegioBank')
+      .replace('ASN Bank voorheen SNS', 'SNS')
+      .replace('bunq', 'Bunq');
+
+    const logos = import.meta.glob(
+      '../assets/banks/*',
+      {
+        eager: true,
+        query: '?url',
+        import: 'default',
+      }
+    ) as Record<string, string>;
+
+    const match = Object.entries(logos).find(
+      ([path]) =>
+        path.toLowerCase().includes(key.toLowerCase())
+    );
+
+    if (match) {
+      source = match[1];
+    }
+  }
+
+  if (!source || error) {
     return (
-      <div className="bank-logo-fallback">
-        {name.slice(0, 2).toUpperCase()}
+      <div className="fallback-logo">
+        {bank.slice(0, 2).toUpperCase()}
       </div>
     );
   }
@@ -275,107 +150,88 @@ function BankLogo({ name }: { name: string }) {
       <img
         src={source}
         alt=""
-        onError={() => setFailed(true)}
+        onError={() => setError(true)}
       />
     </div>
   );
 }
 
+/* -----------------------------------------
+   SPINNER
+----------------------------------------- */
+
 function Spinner() {
   return <div className="spinner" />;
 }
 
-function Confetti() {
-  const pieces = useMemo(
-    () =>
-      Array.from({ length: 80 }, (_, index) => ({
-        id: index,
-        left: `${(index * 37) % 100}%`,
-        delay: `${(index % 15) * 0.12}s`,
-        duration: `${2.8 + (index % 8) * 0.25}s`,
-        rotate: `${(index * 31) % 360}deg`,
-      })),
-    []
-  );
-
-  return (
-    <div className="confetti" aria-hidden="true">
-      {pieces.map((piece) => (
-        <span
-          key={piece.id}
-          style={{
-            left: piece.left,
-            animationDelay: piece.delay,
-            animationDuration: piece.duration,
-            transform: `rotate(${piece.rotate})`,
-          }}
-        />
-      ))}
-    </div>
-  );
-}
+/* -----------------------------------------
+   MAIN
+----------------------------------------- */
 
 export default function IdealPayment() {
-  useFonts();
-  LockPage();
+  Fonts();
 
-  const [params] = useSearchParams();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
 
-  const amount = formatAmount(params.get('amount'));
-  const order = params.get('order') || '';
-  const tracking = params.get('tracking') || '';
+  const amount = formatAmount(
+    params.get('amount')
+  );
 
-  const [introLoading, setIntroLoading] = useState(true);
-  const [startScreen, setStartScreen] = useState(true);
+  const order =
+    params.get('order') ||
+    'WaveGitaar bestelling';
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [startScreen, setStartScreen] =
+    useState(true);
 
   const [selectedBank, setSelectedBank] =
     useState<string | null>(null);
 
-  const [bankLoading, setBankLoading] = useState(false);
+  const [bankLoading, setBankLoading] =
+    useState(false);
 
-  const [manualPayment, setManualPayment] = useState(false);
-  const [confirmation, setConfirmation] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [manualPayment, setManualPayment] =
+    useState(false);
 
-  const [copied, setCopied] = useState<string | null>(null);
+  const [confirmation, setConfirmation] =
+    useState(false);
+
+  const [success, setSuccess] =
+    useState(false);
+
+  const [copied, setCopied] =
+    useState<string | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setIntroLoading(false);
+      setLoading(false);
     }, 700);
 
-    return () => window.clearTimeout(timer);
+    return () =>
+      window.clearTimeout(timer);
   }, []);
 
-  const copyValue = async (
-    value: string,
-    key: string
-  ) => {
-    try {
-      await navigator.clipboard?.writeText(
-        value.replace(/\s/g, '')
-      );
+  useEffect(() => {
+    const oldOverflow =
+      document.body.style.overflow;
 
-      setCopied(key);
+    document.body.style.overflow = 'hidden';
 
-      window.setTimeout(() => {
-        setCopied(null);
-      }, 1500);
-    } catch {
-      // Nothing required.
-    }
+    return () => {
+      document.body.style.overflow =
+        oldOverflow;
+    };
+  }, []);
+
+  const cancel = () => {
+    navigate('/checkout');
   };
 
-  const goToSuccessPage = () => {
-    navigate(
-      `/checkout/success?order=${encodeURIComponent(
-        order
-      )}&tracking=${encodeURIComponent(tracking)}`
-    );
-  };
-
-  const chooseBank = (bank: string) => {
+  const selectBank = (bank: string) => {
     setSelectedBank(bank);
     setBankLoading(true);
 
@@ -384,839 +240,1017 @@ export default function IdealPayment() {
     }, 900);
   };
 
-  if (introLoading) {
-    return (
-      <div className="ideal-root intro-screen">
-        <img
-          src={idealLogo}
-          alt="iDEAL | Wero"
-          className="intro-logo"
-        />
+  const copy = async (
+    value: string,
+    key: string
+  ) => {
+    try {
+      await navigator.clipboard.writeText(
+        value.replace(/\s/g, '')
+      );
 
-        <div className="intro-dots">
-          <span />
-          <span />
-          <span />
+      setCopied(key);
+
+      window.setTimeout(() => {
+        setCopied(null);
+      }, 1400);
+    } catch {
+      // Nothing needed.
+    }
+  };
+
+  /* -----------------------------------------
+     LOADING INTRO
+  ----------------------------------------- */
+
+  if (loading) {
+    return (
+      <>
+        <div className="ideal loading-screen">
+          <img
+            src={idealLogo}
+            alt="iDEAL | Wero"
+          />
+
+          <div className="loading-dots">
+            <span />
+            <span />
+            <span />
+          </div>
         </div>
 
         <Styles />
-      </div>
+      </>
     );
   }
+
+  /* -----------------------------------------
+     SUCCESS
+  ----------------------------------------- */
 
   if (success) {
     return (
-      <div className="ideal-root success-screen">
-        <Confetti />
+      <>
+        <div className="ideal success-screen">
+          <div className="success-content">
+            <img
+              src={successLight}
+              alt=""
+            />
 
-        <div className="success-box">
-          <img
-            src={successLight}
-            alt=""
-            className="success-image"
-          />
+            <h1>Betaling geslaagd</h1>
 
-          <h1>Betaling geslaagd</h1>
+            <p>
+              Je betaling is succesvol verwerkt.
+            </p>
 
-          <p>
-            Je betaling is succesvol verwerkt.
-          </p>
-
-          <button
-            className="pink-button"
-            onClick={goToSuccessPage}
-          >
-            Verder
-          </button>
+            <button
+              className="pink-button"
+              onClick={() =>
+                navigate(
+                  `/checkout/success?order=${encodeURIComponent(
+                    order
+                  )}`
+                )
+              }
+            >
+              Verder
+            </button>
+          </div>
         </div>
 
         <Styles />
-      </div>
+      </>
     );
   }
 
-  const header = (
-    <header className="payment-header">
-      <div className="header-logo">
+  /* -----------------------------------------
+     HEADER
+  ----------------------------------------- */
+
+  const Header = () => (
+    <header className="header">
+      <div className="header-left">
         <img
           src={idealLogo}
           alt="iDEAL | Wero"
         />
       </div>
 
-      <div className="merchant">
-        <div className="merchant-name">
+      <div className="header-center">
+        <div className="merchant">
           WaveGitaar
         </div>
 
-        <div className="merchant-amount">
+        <div className="amount">
           {amount}
         </div>
       </div>
 
       <button
-        className="cancel-button"
-        onClick={() => navigate('/checkout')}
+        className="cancel"
+        onClick={cancel}
       >
         Cancel
       </button>
     </header>
   );
 
-  /*
-   * START SCREEN
-   */
+  /* -----------------------------------------
+     START PAGE
+  ----------------------------------------- */
+
   if (startScreen) {
     return (
-      <div className="ideal-root">
-        {header}
+      <>
+        <div className="ideal">
+          <Header />
 
-        <main className="start-main">
-          <button
-            className="mobile-cancel"
-            onClick={() => navigate('/checkout')}
-          >
-            Cancel
-          </button>
+          <main className="start-page">
+            <button
+              className="mobile-cancel"
+              onClick={cancel}
+            >
+              Cancel
+            </button>
 
-          <div className="start-layout">
-            <section className="qr-column">
-              <DecorativeQR />
+            <div className="start-layout">
 
-              <h1>
-                Scan with your
-                <br />
-                banking app to pay
-              </h1>
-            </section>
+              {/* LEFT */}
+              <section className="qr-side">
 
-            <div className="vertical-divider" />
+                <ReferenceQR />
 
-            <section className="internet-column">
-              <h1>
-                Or use internet
-                <br />
-                banking
-              </h1>
+                <h1>
+                  Scan with your
+                  <br />
+                  banking app to pay
+                </h1>
+              </section>
 
-              <button
-                className="select-bank-button"
-                onClick={() => setStartScreen(false)}
-              >
-                Select your bank
-              </button>
-            </section>
-          </div>
-        </main>
+              {/* LINE */}
+              <div className="divider" />
+
+              {/* RIGHT */}
+              <section className="bank-side">
+
+                <div className="bank-side-inner">
+
+                  <h1>
+                    Or use internet
+                    <br />
+                    banking
+                  </h1>
+
+                  <button
+                    className="select-bank"
+                    onClick={() =>
+                      setStartScreen(false)
+                    }
+                  >
+                    Select your bank
+                  </button>
+
+                </div>
+
+              </section>
+            </div>
+          </main>
+        </div>
 
         <Styles />
-      </div>
+      </>
     );
   }
 
-  /*
-   * CONFIRMATION
-   *
-   * This must come BEFORE manualPayment.
-   * Otherwise the manual-payment screen would always render first.
-   */
+  /* -----------------------------------------
+     CONFIRMATION
+  ----------------------------------------- */
+
   if (confirmation) {
     return (
-      <div className="ideal-root">
-        {header}
+      <>
+        <div className="ideal">
+          <Header />
 
-        <main className="center-main">
-          <section className="payment-card">
-            <button
-              className="back-link"
-              onClick={() => setConfirmation(false)}
-            >
-              ← Terug
-            </button>
+          <main className="center-page">
+            <section className="payment-card">
 
-            <h1>Betaling bevestigen</h1>
+              <button
+                className="back"
+                onClick={() =>
+                  setConfirmation(false)
+                }
+              >
+                ← Terug
+              </button>
 
-            <p>
-              Heb je het bedrag al handmatig
-              overgemaakt?
-            </p>
+              <h1>
+                Betaling bevestigen
+              </h1>
 
-            <button
-              className="pink-button"
-              onClick={() => setSuccess(true)}
-            >
-              Ja, ik heb betaald
-            </button>
+              <p>
+                Heb je het bedrag al
+                overgemaakt?
+              </p>
 
-            <button
-              className="dark-button"
-              onClick={() => setConfirmation(false)}
-            >
-              Nee, nog niet betaald
-            </button>
-          </section>
-        </main>
+              <button
+                className="pink-button"
+                onClick={() =>
+                  setSuccess(true)
+                }
+              >
+                Ja, ik heb betaald
+              </button>
+
+              <button
+                className="dark-button"
+                onClick={() =>
+                  setConfirmation(false)
+                }
+              >
+                Nee, nog niet betaald
+              </button>
+
+            </section>
+          </main>
+        </div>
 
         <Styles />
-      </div>
+      </>
     );
   }
 
-  /*
-   * MANUAL TRANSFER
-   */
+  /* -----------------------------------------
+     MANUAL PAYMENT
+  ----------------------------------------- */
+
   if (manualPayment) {
-    const details = [
-      {
-        label: 'Bedrag',
-        value: amount,
-        key: 'amount',
-      },
-      {
-        label: 'Ten name van',
-        value: 'WaveGitaar',
-        key: 'name',
-      },
-      {
-        label: 'IBAN',
-        value: 'NL00 0000 0000 0000 00',
-        key: 'iban',
-      },
-      {
-        label: 'Omschrijving',
-        value:
-          order || 'WaveGitaar bestelling',
-        key: 'reference',
-      },
-    ];
-
     return (
-      <div className="ideal-root">
-        {header}
+      <>
+        <div className="ideal">
+          <Header />
 
-        <main className="center-main">
-          <section className="payment-card transfer-card">
-            <button
-              className="back-link"
-              onClick={() => setManualPayment(false)}
-            >
-              ← Terug
-            </button>
+          <main className="center-page">
+            <section className="payment-card transfer-card">
 
-            <h1>Handmatig overmaken</h1>
+              <button
+                className="back"
+                onClick={() =>
+                  setManualPayment(false)
+                }
+              >
+                ← Terug
+              </button>
 
-            <p>
-              Maak het bedrag over met de
-              onderstaande betaalgegevens.
-            </p>
+              <h1>
+                Handmatig overmaken
+              </h1>
 
-            <div className="transfer-list">
-              {details.map((item) => (
-                <div
-                  className="transfer-row"
-                  key={item.key}
-                >
-                  <span>{item.label}</span>
+              <p>
+                Maak het bedrag over met
+                onderstaande gegevens.
+              </p>
+
+              <div className="transfer">
+
+                <div className="transfer-row">
+                  <span>Bedrag</span>
+                  <strong>{amount}</strong>
+                </div>
+
+                <div className="transfer-row">
+                  <span>Naam</span>
+                  <strong>
+                    WaveGitaar
+                  </strong>
+                </div>
+
+                <div className="transfer-row">
+                  <span>IBAN</span>
 
                   <strong>
-                    {item.value}
+                    NL00 0000 0000 0000 00
                   </strong>
 
-                  {(item.key === 'iban' ||
-                    item.key === 'reference') && (
-                    <button
-                      onClick={() =>
-                        copyValue(
-                          item.value,
-                          item.key
-                        )
-                      }
-                    >
-                      {copied === item.key
-                        ? 'Gekopieerd'
-                        : 'Kopieer'}
-                    </button>
-                  )}
+                  <button
+                    onClick={() =>
+                      copy(
+                        'NL00 0000 0000 0000 00',
+                        'iban'
+                      )
+                    }
+                  >
+                    {copied === 'iban'
+                      ? 'Gekopieerd'
+                      : 'Kopieer'}
+                  </button>
                 </div>
-              ))}
-            </div>
 
-            <button
-              className="pink-button"
-              onClick={() => setConfirmation(true)}
-            >
-              Ik heb betaald
-            </button>
-          </section>
-        </main>
+                <div className="transfer-row">
+                  <span>Omschrijving</span>
+
+                  <strong>
+                    {order}
+                  </strong>
+
+                  <button
+                    onClick={() =>
+                      copy(
+                        order,
+                        'order'
+                      )
+                    }
+                  >
+                    {copied === 'order'
+                      ? 'Gekopieerd'
+                      : 'Kopieer'}
+                  </button>
+                </div>
+
+              </div>
+
+              <button
+                className="pink-button"
+                onClick={() =>
+                  setConfirmation(true)
+                }
+              >
+                Ik heb betaald
+              </button>
+
+            </section>
+          </main>
+        </div>
 
         <Styles />
-      </div>
+      </>
     );
   }
 
-  /*
-   * BANK LOADING
-   */
-  if (selectedBank && bankLoading) {
+  /* -----------------------------------------
+     BANK LOADING
+  ----------------------------------------- */
+
+  if (
+    selectedBank &&
+    bankLoading
+  ) {
     return (
-      <div className="ideal-root">
-        {header}
+      <>
+        <div className="ideal">
+          <Header />
 
-        <main className="center-main">
-          <section className="payment-card loading-card">
-            <Spinner />
+          <main className="center-page">
 
-            <h1>
-              Bankomgeving openen
-            </h1>
+            <section className="payment-card loading-card">
 
-            <p>{selectedBank}</p>
-          </section>
-        </main>
+              <Spinner />
+
+              <h1>
+                Bankomgeving openen
+              </h1>
+
+              <p>
+                {selectedBank}
+              </p>
+
+            </section>
+
+          </main>
+        </div>
 
         <Styles />
-      </div>
+      </>
     );
   }
 
-  /*
-   * SELECTED BANK
-   */
+  /* -----------------------------------------
+     SELECTED BANK
+  ----------------------------------------- */
+
   if (selectedBank) {
     return (
-      <div className="ideal-root">
-        {header}
+      <>
+        <div className="ideal">
+          <Header />
 
-        <main className="center-main">
-          <section className="payment-card">
-            <button
-              className="back-link"
-              onClick={() => {
-                setSelectedBank(null);
-                setStartScreen(false);
-              }}
-            >
-              ← Terug naar banken
-            </button>
+          <main className="center-page">
 
-            <BankLogo name={selectedBank} />
+            <section className="payment-card">
 
-            <h1>
-              {selectedBank}
-            </h1>
+              <button
+                className="back"
+                onClick={() =>
+                  setSelectedBank(null)
+                }
+              >
+                ← Andere bank
+              </button>
 
-            <p>
-              Ga verder om je betaling af
-              te ronden.
-            </p>
+              <BankLogo
+                bank={selectedBank}
+              />
 
-            <button
-              className="pink-button"
-              onClick={() =>
-                setManualPayment(true)
-              }
-            >
-              Handmatig overmaken
-            </button>
+              <h1>
+                {selectedBank}
+              </h1>
 
-            <button
-              className="dark-button"
-              onClick={() =>
-                setSelectedBank(null)
-              }
-            >
-              Andere bank kiezen
-            </button>
-          </section>
-        </main>
+              <p>
+                Je bent bijna klaar.
+                Kies hieronder hoe je
+                de betaling wilt afronden.
+              </p>
+
+              <button
+                className="pink-button"
+                onClick={() =>
+                  setManualPayment(true)
+                }
+              >
+                Doorgaan met betaling
+              </button>
+
+              <button
+                className="dark-button"
+                onClick={() =>
+                  setSelectedBank(null)
+                }
+              >
+                Andere bank kiezen
+              </button>
+
+            </section>
+
+          </main>
+        </div>
 
         <Styles />
-      </div>
+      </>
     );
   }
 
-  /*
-   * BANK SELECTION
-   */
+  /* -----------------------------------------
+     BANK CHOICE
+  ----------------------------------------- */
+
   return (
-    <div className="ideal-root">
-      {header}
+    <>
+      <div className="ideal">
+        <Header />
 
-      <main className="bank-main">
-        <section className="bank-section">
-          <button
-            className="bank-back"
-            onClick={() => setStartScreen(true)}
-          >
-            ← Back
-          </button>
+        <main className="banks-page">
 
-          <div className="bank-heading">
-            <h1>Select your bank</h1>
+          <section className="banks-container">
 
-            <p>
-              Choose your bank to continue
-              with the payment.
-            </p>
-          </div>
+            <button
+              className="back"
+              onClick={() =>
+                setStartScreen(true)
+              }
+            >
+              ← Back
+            </button>
 
-          <div className="bank-grid">
-            {BANKS.map((bank) => (
-              <button
-                className="bank-row"
-                key={bank}
-                onClick={() => chooseBank(bank)}
-              >
-                <BankLogo name={bank} />
+            <div className="banks-title">
+              <h1>
+                Select your bank
+              </h1>
 
-                <span>{bank}</span>
+              <p>
+                Choose your bank to continue.
+              </p>
+            </div>
 
-                <span className="bank-arrow">
-                  →
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
-      </main>
+            <div className="banks-grid">
+
+              {BANKS.map((bank) => (
+                <button
+                  key={bank}
+                  className="bank-item"
+                  onClick={() =>
+                    selectBank(bank)
+                  }
+                >
+
+                  <BankLogo
+                    bank={bank}
+                  />
+
+                  <span>
+                    {bank}
+                  </span>
+
+                  <b>
+                    →
+                  </b>
+
+                </button>
+              ))}
+
+            </div>
+
+          </section>
+
+        </main>
+      </div>
 
       <Styles />
-    </div>
+    </>
   );
 }
+
+/* =========================================
+   STYLES
+========================================= */
 
 function Styles() {
   return (
     <style>{`
+
       * {
         box-sizing: border-box;
       }
 
-      .ideal-root {
+      html,
+      body,
+      #root {
+        margin: 0;
+        width: 100%;
+        min-height: 100%;
+      }
+
+      button {
+        font-family: ${FONT};
+      }
+
+      .ideal {
         position: fixed;
         inset: 0;
         z-index: 999999;
         overflow-y: auto;
-        overflow-x: hidden;
         background: ${BLACK};
-        color: #fff;
+        color: white;
         font-family: ${FONT};
-        font-weight: 400;
         -webkit-font-smoothing: antialiased;
-        text-rendering: geometricPrecision;
       }
 
-      .ideal-root button {
-        font-family: ${FONT};
-      }
-
-      /* ----------------------------------------
+      /* =========================
          HEADER
-      ---------------------------------------- */
+      ========================= */
 
-      .payment-header {
-        position: relative;
-        min-height: 102px;
+      .header {
         width: 100%;
+        height: 103px;
         background: ${PINK};
+
         display: grid;
         grid-template-columns: 1fr auto 1fr;
         align-items: center;
+
         padding: 0 28px;
-        color: #fff;
       }
 
-      .header-logo {
-        justify-self: start;
+      .header-left {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
       }
 
-      .header-logo img {
-        display: block;
-        width: 142px;
-        height: 52px;
+      .header-left img {
+        width: 143px;
+        height: 53px;
         object-fit: contain;
       }
 
-      .merchant {
+      .header-center {
         text-align: center;
-        line-height: 1.05;
+        line-height: 1;
       }
 
-      .merchant-name {
-        font-size: 26px;
+      .merchant {
+        font-size: 27px;
         font-weight: 400;
-        letter-spacing: -.02em;
       }
 
-      .merchant-amount {
+      .amount {
         margin-top: 8px;
         font-size: 31px;
         font-weight: 700;
-        letter-spacing: -.03em;
       }
 
-      .cancel-button {
+      .cancel {
         justify-self: end;
         border: 0;
         background: transparent;
-        color: #fff;
+        color: white;
         font-size: 18px;
         font-weight: 600;
         cursor: pointer;
-        padding: 10px 8px;
+        padding: 12px;
       }
 
-      .cancel-button:hover {
-        opacity: .78;
+      .cancel:hover {
+        opacity: .7;
       }
 
       .mobile-cancel {
         display: none;
       }
 
-      /* ----------------------------------------
-         INTRO
-      ---------------------------------------- */
+      /* =========================
+         START
+      ========================= */
 
-      .intro-screen {
-        display: grid;
-        place-items: center;
-        background: #fff;
-      }
-
-      .intro-logo {
-        width: 125px;
-        height: auto;
-        animation: introPulse 1s ease-in-out infinite;
-      }
-
-      .intro-dots {
-        position: absolute;
-        top: calc(50% + 60px);
-        display: flex;
-        gap: 5px;
-      }
-
-      .intro-dots span {
-        width: 5px;
-        height: 5px;
-        border-radius: 50%;
-        background: #69747b;
-        animation: dotPulse 1s ease-in-out infinite;
-      }
-
-      .intro-dots span:nth-child(2) {
-        animation-delay: .15s;
-      }
-
-      .intro-dots span:nth-child(3) {
-        animation-delay: .3s;
-      }
-
-      /* ----------------------------------------
-         START SCREEN
-      ---------------------------------------- */
-
-      .start-main {
-        min-height: calc(100dvh - 102px);
-        padding: 64px 70px 72px;
-        position: relative;
+      .start-page {
+        min-height: calc(100dvh - 103px);
+        padding: 65px 70px 70px;
       }
 
       .start-layout {
         width: min(1120px, 100%);
         min-height: 560px;
         margin: 0 auto;
+
         display: grid;
         grid-template-columns: 1fr 1px 1fr;
+        column-gap: 80px;
         align-items: center;
-        column-gap: 82px;
       }
 
-      .qr-column,
-      .internet-column {
+      .qr-side,
+      .bank-side {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+      }
+
+      .qr-side {
+        flex-direction: column;
+      }
+
+      .bank-side {
+        height: 100%;
+      }
+
+      /*
+       * This is what fixes the previous issue:
+       * everything in the RIGHT half is centered.
+       */
+
+      .bank-side-inner {
+        width: 100%;
+        max-width: 540px;
+
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
+
         text-align: center;
       }
 
-      .qr-column h1,
-      .internet-column h1 {
-        font-family: ${HEAD};
-        font-size: clamp(34px, 3.1vw, 48px);
-        line-height: 1.35;
-        font-weight: 600;
-        letter-spacing: -.025em;
-        margin: 42px 0 0;
+      .qr-side h1,
+      .bank-side h1 {
+        margin: 0;
         color: #fff;
+        font-family: ${HEAD};
+        font-weight: 600;
+        font-size: clamp(35px, 3vw, 47px);
+        line-height: 1.35;
+        letter-spacing: -.02em;
       }
 
-      .internet-column h1 {
-        margin: 0 0 42px;
+      .qr-side h1 {
+        margin-top: 42px;
       }
 
-      .vertical-divider {
+      .bank-side h1 {
+        margin-bottom: 42px;
+      }
+
+      .divider {
         width: 1px;
         height: 410px;
-        background: #707070;
-        opacity: .72;
+        background: #737373;
+        opacity: .7;
       }
 
-      /* ----------------------------------------
+      /* =========================
          QR
-      ---------------------------------------- */
+      ========================= */
 
-      .qr-frame {
+      .qr-wrapper {
+        position: relative;
+
         width: 315px;
         height: 315px;
-        background: #fff;
-        border-radius: 21px;
-        padding: 22px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 0 0 1px rgba(255,255,255,.08);
+
+        border-radius: 22px;
+        overflow: hidden;
+
+        background: white;
+
+        flex-shrink: 0;
       }
 
-      .qr-svg {
+      .reference-qr {
         width: 100%;
         height: 100%;
+
         display: block;
-        shape-rendering: crispEdges;
+
+        object-fit: cover;
       }
 
-      /* ----------------------------------------
-         SELECT BANK BUTTON
-      ---------------------------------------- */
+      /*
+       * Only a tiny part of the QR is altered.
+       * It is deliberately positioned over a module
+       * near the upper-right area.
+       *
+       * The QR therefore looks essentially identical
+       * to the supplied reference but is not usable.
+       */
 
-      .select-bank-button {
+      .qr-break {
+        position: absolute;
+
+        width: 9px;
+        height: 9px;
+
+        left: 73%;
+        top: 18%;
+
+        background: white;
+
+        border-radius: 1px;
+
+        pointer-events: none;
+      }
+
+      /* =========================
+         SELECT BANK
+      ========================= */
+
+      .select-bank {
         width: min(480px, 100%);
         height: 64px;
+
+        border: 1px solid #f2f2f2;
         border-radius: 34px;
-        border: 1px solid #f0f0f0;
+
         background: transparent;
-        color: #fff;
+        color: white;
+
         font-size: 21px;
         font-weight: 600;
+
         cursor: pointer;
+
         transition:
-          background .18s ease,
-          color .18s ease,
-          transform .18s ease;
+          background .15s ease,
+          color .15s ease,
+          transform .15s ease;
       }
 
-      .select-bank-button:hover {
-        background: #fff;
+      .select-bank:hover {
+        background: white;
         color: ${BLACK};
         transform: translateY(-1px);
       }
 
-      /* ----------------------------------------
-         BANK SELECTION
-      ---------------------------------------- */
+      /* =========================
+         BANK PAGE
+      ========================= */
 
-      .bank-main {
-        min-height: calc(100dvh - 102px);
-        padding: 52px 24px 70px;
+      .banks-page {
+        min-height: calc(100dvh - 103px);
+        padding: 50px 25px 70px;
       }
 
-      .bank-section {
-        width: min(780px, 100%);
+      .banks-container {
+        width: min(790px, 100%);
         margin: 0 auto;
       }
 
-      .bank-back {
-        border: 0;
-        background: transparent;
-        color: ${PINK};
-        padding: 0;
-        font-size: 16px;
-        font-weight: 500;
-        cursor: pointer;
-        margin-bottom: 30px;
+      .banks-title {
+        text-align: center;
+        margin-bottom: 32px;
       }
 
-      .bank-heading {
-        margin-bottom: 30px;
-      }
-
-      .bank-heading h1 {
+      .banks-title h1 {
+        margin: 0 0 9px;
+        color: white;
         font-family: ${HEAD};
         font-size: 42px;
         line-height: 1.15;
-        margin: 0 0 10px;
-        color: #fff;
       }
 
-      .bank-heading p {
+      .banks-title p {
         margin: 0;
         color: ${GREY};
         font-size: 15px;
       }
 
-      .bank-grid {
+      .back {
+        display: block;
+
+        border: 0;
+        background: transparent;
+
+        padding: 0;
+        margin: 0 0 30px;
+
+        color: ${PINK};
+
+        font-size: 15px;
+        font-weight: 500;
+
+        cursor: pointer;
+      }
+
+      .banks-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 12px;
       }
 
-      .bank-row {
-        width: 100%;
+      .bank-item {
         min-height: 76px;
+
         display: grid;
-        grid-template-columns: 54px 1fr 24px;
+        grid-template-columns: 54px 1fr 25px;
         align-items: center;
+
         gap: 14px;
-        padding: 10px 17px;
-        border: 1px solid #454545;
+
+        padding: 10px 16px;
+
+        border: 1px solid ${BORDER};
         border-radius: 12px;
+
         background: #222;
-        color: #fff;
+        color: white;
+
         text-align: left;
+
         cursor: pointer;
+
         transition:
-          border-color .15s ease,
           background .15s ease,
+          border-color .15s ease,
           transform .15s ease;
       }
 
-      .bank-row:hover {
+      .bank-item:hover {
         background: #292929;
         border-color: #777;
         transform: translateY(-1px);
       }
 
-      .bank-row > span {
+      .bank-item > span {
         font-size: 15px;
         font-weight: 400;
       }
 
-      .bank-arrow {
-        text-align: right;
+      .bank-item b {
         color: #999;
-        font-size: 19px !important;
+        font-size: 19px;
+        font-weight: 400;
+        text-align: right;
       }
 
-      /* ----------------------------------------
-         BANK LOGOS
-      ---------------------------------------- */
+      /* =========================
+         LOGOS
+      ========================= */
 
       .bank-logo {
         width: 54px;
         height: 54px;
-        border-radius: 9px;
-        overflow: hidden;
+
         display: flex;
         align-items: center;
         justify-content: center;
+
         background: transparent;
-        flex: 0 0 54px;
+
+        border-radius: 8px;
+
+        overflow: hidden;
       }
 
       .bank-logo img {
+        display: block;
+
         width: 100%;
         height: 100%;
+
         object-fit: contain;
-        display: block;
       }
 
-      .bank-logo-fallback {
+      .fallback-logo {
         width: 54px;
         height: 54px;
-        border-radius: 9px;
+
         display: grid;
         place-items: center;
+
+        border-radius: 9px;
+
         background: #303030;
-        color: #fff;
+        color: white;
+
         font-size: 14px;
         font-weight: 600;
       }
 
-      /* ----------------------------------------
-         CENTER / PAYMENT CARDS
-      ---------------------------------------- */
+      /* =========================
+         CENTER
+      ========================= */
 
-      .center-main {
-        min-height: calc(100dvh - 102px);
+      .center-page {
+        min-height: calc(100dvh - 103px);
+
         display: grid;
         place-items: center;
+
         padding: 40px 20px 70px;
       }
 
       .payment-card {
         width: min(570px, 100%);
-        background: #222;
-        border: 1px solid #3d3d3d;
-        border-radius: 18px;
+
         padding: 38px 42px 42px;
+
+        border: 1px solid #3e3e3e;
+        border-radius: 18px;
+
+        background: ${CARD};
+
         text-align: center;
+
         display: flex;
         flex-direction: column;
         align-items: center;
       }
 
-      .payment-card > .bank-logo {
-        width: 78px;
-        height: 78px;
-        margin-bottom: 20px;
-      }
-
-      .payment-card > .bank-logo-fallback {
-        width: 78px;
-        height: 78px;
-        margin-bottom: 20px;
-      }
-
       .payment-card h1 {
+        margin: 0 0 13px;
+
         font-family: ${HEAD};
-        color: #fff;
-        font-size: 38px;
+        font-size: 37px;
         line-height: 1.2;
-        margin: 0 0 12px;
+
+        color: white;
       }
 
-      .payment-card > p {
+      .payment-card p {
+        margin: 0;
+
+        max-width: 460px;
+
         color: ${GREY};
+
         font-size: 15px;
         line-height: 1.65;
-        margin: 0;
-        max-width: 450px;
       }
 
-      .back-link {
-        align-self: flex-start;
-        border: 0;
-        background: transparent;
-        color: ${PINK};
-        padding: 0;
-        margin: 0 0 28px;
-        font-size: 14px;
-        cursor: pointer;
+      .payment-card > .bank-logo,
+      .payment-card > .fallback-logo {
+        width: 78px;
+        height: 78px;
+        margin-bottom: 20px;
       }
 
-      /* ----------------------------------------
+      .payment-card > .bank-logo img {
+        width: 100%;
+        height: 100%;
+      }
+
+      /* =========================
          BUTTONS
-      ---------------------------------------- */
+      ========================= */
 
       .pink-button,
       .dark-button {
         width: 100%;
         min-height: 58px;
+
+        margin-top: 16px;
+
         border-radius: 10px;
-        padding: 14px 20px;
+
         font-size: 16px;
         font-weight: 600;
+
         cursor: pointer;
-        margin-top: 16px;
       }
 
       .pink-button {
         border: 0;
         background: ${PINK};
-        color: #fff;
+        color: white;
       }
 
       .pink-button:hover {
@@ -1226,174 +1260,201 @@ function Styles() {
       .dark-button {
         border: 1px solid #555;
         background: #2b2b2b;
-        color: #fff;
+        color: white;
       }
 
       .dark-button:hover {
         background: #333;
       }
 
-      /* ----------------------------------------
+      /* =========================
          TRANSFER
-      ---------------------------------------- */
+      ========================= */
 
       .transfer-card {
         width: min(690px, 100%);
       }
 
-      .transfer-list {
+      .transfer {
         width: 100%;
+
         margin-top: 28px;
+
         border: 1px solid #404040;
         border-radius: 12px;
+
         overflow: hidden;
       }
 
       .transfer-row {
-        min-height: 65px;
+        min-height: 64px;
+
         display: grid;
-        grid-template-columns: 125px 1fr auto;
-        gap: 12px;
+        grid-template-columns: 120px 1fr auto;
+
         align-items: center;
-        text-align: left;
+        gap: 12px;
+
         padding: 10px 15px;
+
         border-bottom: 1px solid #353535;
+
+        text-align: left;
       }
 
       .transfer-row:last-child {
         border-bottom: 0;
       }
 
-      .transfer-row > span {
-        color: #9e9e9e;
+      .transfer-row span {
+        color: #999;
         font-size: 12px;
       }
 
       .transfer-row strong {
-        color: #fff;
+        color: white;
         font-size: 14px;
         font-weight: 400;
+
         overflow-wrap: anywhere;
       }
 
       .transfer-row button {
         border: 0;
         background: transparent;
+
         color: ${PINK};
-        cursor: pointer;
+
         font-size: 12px;
+
+        cursor: pointer;
         white-space: nowrap;
       }
 
-      /* ----------------------------------------
+      /* =========================
          LOADING
-      ---------------------------------------- */
+      ========================= */
 
       .loading-card {
-        min-height: 320px;
+        min-height: 300px;
         justify-content: center;
       }
 
       .spinner {
-        width: 52px;
-        height: 52px;
-        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+
+        margin-bottom: 25px;
+
         border: 3px solid #444;
         border-top-color: ${PINK};
+
+        border-radius: 50%;
+
         animation: spin .75s linear infinite;
-        margin-bottom: 25px;
       }
 
-      /* ----------------------------------------
+      /* =========================
+         INTRO
+      ========================= */
+
+      .loading-screen {
+        position: fixed;
+        inset: 0;
+
+        display: grid;
+        place-items: center;
+
+        background: white;
+      }
+
+      .loading-screen img {
+        width: 125px;
+      }
+
+      .loading-dots {
+        position: absolute;
+        top: calc(50% + 60px);
+
+        display: flex;
+        gap: 5px;
+      }
+
+      .loading-dots span {
+        width: 5px;
+        height: 5px;
+
+        border-radius: 50%;
+
+        background: #68747b;
+
+        animation: dots 1s infinite ease-in-out;
+      }
+
+      .loading-dots span:nth-child(2) {
+        animation-delay: .15s;
+      }
+
+      .loading-dots span:nth-child(3) {
+        animation-delay: .3s;
+      }
+
+      /* =========================
          SUCCESS
-      ---------------------------------------- */
+      ========================= */
 
       .success-screen {
         display: grid;
         place-items: center;
-        overflow: hidden;
       }
 
-      .success-box {
+      .success-content {
         width: min(520px, calc(100% - 40px));
         text-align: center;
-        position: relative;
-        z-index: 2;
       }
 
-      .success-image {
-        display: block;
+      .success-content img {
         width: min(280px, 60vw);
         height: min(280px, 60vw);
+
         object-fit: contain;
+
+        display: block;
+
         margin: 0 auto 10px;
       }
 
-      .success-box h1 {
-        font-family: ${HEAD};
-        font-size: 42px;
+      .success-content h1 {
         margin: 0 0 12px;
+
+        font-family: ${HEAD};
+
+        font-size: 42px;
       }
 
-      .success-box p {
+      .success-content p {
         margin: 0 0 25px;
+
         color: ${GREY};
         font-size: 15px;
       }
 
-      .success-box .pink-button {
+      .success-content .pink-button {
         width: min(450px, 100%);
         margin: 0 auto;
       }
 
-      .confetti {
-        position: absolute;
-        inset: 0;
-        overflow: hidden;
-        pointer-events: none;
-      }
-
-      .confetti span {
-        position: absolute;
-        top: -20px;
-        width: 7px;
-        height: 13px;
-        background: ${PINK};
-        animation-name: fall;
-        animation-timing-function: linear;
-        animation-iteration-count: infinite;
-      }
-
-      .confetti span:nth-child(3n) {
-        background: #fff;
-      }
-
-      .confetti span:nth-child(4n) {
-        background: #ffd500;
-      }
-
-      .confetti span:nth-child(5n) {
-        background: #00a7e1;
-      }
-
-      /* ----------------------------------------
+      /* =========================
          ANIMATIONS
-      ---------------------------------------- */
+      ========================= */
 
-      @keyframes introPulse {
-        0%,
-        100% {
-          opacity: .78;
-          transform: scale(.98);
-        }
-
-        50% {
-          opacity: 1;
-          transform: scale(1.03);
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
         }
       }
 
-      @keyframes dotPulse {
+      @keyframes dots {
         0%,
         80%,
         100% {
@@ -1407,32 +1468,13 @@ function Styles() {
         }
       }
 
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
-      }
-
-      @keyframes fall {
-        from {
-          transform:
-            translate3d(0, -20px, 0)
-            rotate(0deg);
-        }
-
-        to {
-          transform:
-            translate3d(20px, 110vh, 0)
-            rotate(540deg);
-        }
-      }
-
-      /* ----------------------------------------
+      /* =========================
          TABLET
-      ---------------------------------------- */
+      ========================= */
 
       @media (max-width: 900px) {
-        .start-main {
+
+        .start-page {
           padding-left: 35px;
           padding-right: 35px;
         }
@@ -1441,135 +1483,138 @@ function Styles() {
           column-gap: 45px;
         }
 
-        .qr-frame {
+        .qr-wrapper {
           width: 270px;
           height: 270px;
-          padding: 18px;
         }
 
-        .qr-column h1,
-        .internet-column h1 {
+        .qr-side h1,
+        .bank-side h1 {
           font-size: 34px;
         }
+
       }
 
-      /* ----------------------------------------
+      /* =========================
          MOBILE
-      ---------------------------------------- */
+      ========================= */
 
       @media (max-width: 700px) {
-        .payment-header {
-          min-height: 82px;
-          padding: 0 16px;
+
+        .header {
+          height: 82px;
+
           grid-template-columns: auto 1fr;
-          gap: 15px;
+
+          padding: 0 16px;
         }
 
-        .header-logo img {
-          width: 94px;
-          height: 38px;
+        .header-left img {
+          width: 95px;
+          height: 39px;
         }
 
-        .merchant {
+        .header-center {
           justify-self: end;
           text-align: right;
         }
 
-        .merchant-name {
+        .merchant {
           font-size: 14px;
         }
 
-        .merchant-amount {
-          font-size: 20px;
+        .amount {
           margin-top: 5px;
+          font-size: 20px;
         }
 
-        .cancel-button {
+        .cancel {
           display: none;
         }
 
         .mobile-cancel {
           display: block;
+
           position: absolute;
-          top: 18px;
-          left: 18px;
+
+          top: 17px;
+          left: 17px;
+
+          z-index: 5;
+
           border: 0;
           background: transparent;
+
           color: ${PINK};
+
           font-size: 16px;
           font-weight: 600;
+
           cursor: pointer;
-          z-index: 5;
         }
 
-        .start-main {
+        .start-page {
           min-height: calc(100dvh - 82px);
-          padding: 70px 20px 40px;
+
+          padding: 65px 20px 35px;
         }
 
         .start-layout {
           min-height: 0;
+
           display: flex;
           flex-direction: column;
+
           width: 100%;
-          gap: 0;
         }
 
-        .qr-column {
+        .qr-side {
           display: none;
         }
 
-        .vertical-divider {
+        .divider {
           display: none;
         }
 
-        .internet-column {
+        .bank-side {
+          min-height: calc(100dvh - 150px);
           width: 100%;
-          min-height: calc(100dvh - 160px);
-          justify-content: center;
         }
 
-        .internet-column h1 {
-          font-size: 34px;
-          line-height: 1.35;
-          margin: 0 0 35px;
+        .bank-side-inner {
+          width: 100%;
+          max-width: 500px;
         }
 
-        .select-bank-button {
-          width: min(430px, 100%);
+        .bank-side h1 {
+          font-size: 31px;
+          margin-bottom: 35px;
+        }
+
+        .select-bank {
           height: 60px;
           font-size: 18px;
         }
 
-        .bank-main {
+        .banks-page {
           min-height: calc(100dvh - 82px);
           padding: 30px 14px 45px;
         }
 
-        .bank-section {
-          width: 100%;
-        }
-
-        .bank-heading h1 {
+        .banks-title h1 {
           font-size: 32px;
         }
 
-        .bank-grid {
+        .banks-grid {
           grid-template-columns: 1fr;
-          gap: 9px;
         }
 
-        .bank-row {
-          min-height: 68px;
-        }
-
-        .center-main {
+        .center-page {
           min-height: calc(100dvh - 82px);
           padding: 25px 14px 45px;
         }
 
         .payment-card {
-          border-radius: 15px;
           padding: 30px 18px 25px;
         }
 
@@ -1578,59 +1623,42 @@ function Styles() {
         }
 
         .transfer-row {
-          grid-template-columns: 76px 1fr auto;
-          gap: 8px;
-          padding-left: 11px;
-          padding-right: 11px;
-        }
-
-        .success-box h1 {
-          font-size: 32px;
-        }
-      }
-
-      @media (max-width: 420px) {
-        .header-logo img {
-          width: 86px;
-        }
-
-        .merchant-name {
-          font-size: 12px;
-        }
-
-        .merchant-amount {
-          font-size: 18px;
-        }
-
-        .internet-column h1 {
-          font-size: 29px;
-        }
-
-        .bank-row {
-          grid-template-columns: 48px 1fr 20px;
-          gap: 11px;
-        }
-
-        .bank-logo,
-        .bank-logo-fallback {
-          width: 48px;
-          height: 48px;
-          flex-basis: 48px;
-        }
-
-        .bank-row > span {
-          font-size: 14px;
-        }
-
-        .transfer-row {
-          grid-template-columns: 68px 1fr;
+          grid-template-columns: 76px 1fr;
         }
 
         .transfer-row button {
           grid-column: 2;
           justify-self: start;
         }
+
       }
+
+      @media (max-width: 420px) {
+
+        .header-left img {
+          width: 86px;
+        }
+
+        .merchant {
+          font-size: 12px;
+        }
+
+        .amount {
+          font-size: 18px;
+        }
+
+        .bank-item {
+          grid-template-columns: 48px 1fr 20px;
+        }
+
+        .bank-logo,
+        .fallback-logo {
+          width: 48px;
+          height: 48px;
+        }
+
+      }
+
     `}</style>
   );
 }
