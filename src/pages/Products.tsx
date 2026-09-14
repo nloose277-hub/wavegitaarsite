@@ -3,31 +3,44 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { SlidersHorizontal, X, ChevronRight, Check } from 'lucide-react';
 import { Seo } from '../components/Seo';
 import { ProductCard } from '../components/ProductCard';
-import { fetchProducts, fetchCategories, fetchProductImages, fetchReviewSummaries } from '../lib/api';
+import { fetchProducts, fetchCategories, fetchReviewSummaries } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import type { Product, Category } from '../lib/types';
 import type { ReviewSummary } from '../lib/api';
 
 async function loadImagesSafely(products: Product[]): Promise<Product[]> {
-  // Do not request every image at exactly the same moment. A failed request for
-  // one product must also never make the complete product grid fail.
-  const result: Product[] = [];
-  const queue = [...products];
-  const worker = async () => {
-    while (queue.length) {
-      const product = queue.shift();
-      if (!product) return;
-      try {
-        const imgs = await fetchProductImages(product.id);
-        result.push({ ...product, images: imgs });
-      } catch {
-        // Keep the product visible even when its image request fails.
-        result.push({ ...product, images: product.images ?? [] });
-      }
-    }
-  };
+  if (products.length === 0) return products;
 
-  await Promise.all([worker(), worker(), worker(), worker()]);
-  return result;
+  // IMPORTANT: fetch all product images in one Supabase request.
+  // The old version made a separate request for every product. With many
+  // products, the first few could load while later requests were delayed
+  // or failed. One batched request avoids that problem.
+  const productIds = products.map((p) => p.id);
+
+  const { data: imageRows, error } = await supabase
+    .from('product_images')
+    .select('*')
+    .in('product_id', productIds)
+    .order('sort_order', { ascending: true });
+
+  if (error) {
+    // Keep every product visible if the image query itself fails.
+    return products.map((p) => ({ ...p, images: p.images ?? [] }));
+  }
+
+  const imagesByProduct: Record<string, any[]> = {};
+
+  for (const image of imageRows ?? []) {
+    if (!imagesByProduct[image.product_id]) {
+      imagesByProduct[image.product_id] = [];
+    }
+    imagesByProduct[image.product_id].push(image);
+  }
+
+  return products.map((product) => ({
+    ...product,
+    images: imagesByProduct[product.id] ?? [],
+  }));
 }
 
 export default function Products() {

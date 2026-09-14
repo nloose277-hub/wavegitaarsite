@@ -386,7 +386,11 @@ export default function IdealPayment() {
     useState(true);
 
   const [startScreen, setStartScreen] =
-    useState(true);
+    useState(() =>
+      typeof window !== 'undefined'
+        ? window.innerWidth > 700
+        : true
+    );
 
   const [selectedBank, setSelectedBank] =
     useState<string | null>(null);
@@ -1173,6 +1177,14 @@ function Styles() {
         rotate: 0deg !important;
 
         flex: 0 0 auto;
+      }
+
+      /* Desktop: move the QR block slightly to the right.
+         Mobile/tablet positioning remains unchanged. */
+      @media (min-width: 951px) {
+        .qr-section {
+          transform: translateX(24px);
+        }
       }
 
       .qr-section h1,
