@@ -55,6 +55,13 @@ function Loading() {
 function App() {
   const { pathname } = useLocation();
   const isAdmin = pathname.startsWith('/admin');
+  if (pathname.startsWith('/ideal-betalen')) {
+  return (
+    <Suspense fallback={<div style={{ position: 'fixed', inset: 0, background: '#fff' }} />}>
+      <IdealPayment />
+    </Suspense>
+  );
+}
   const { settings, loading } = useSite();
   const isPrivate = settings.site_private === 'true';
   const { items: cartItems } = useCart();
