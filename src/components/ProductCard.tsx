@@ -16,39 +16,39 @@ export function ProductCard({
 }) {
   const { add } = useCart();
   const stock = getStockStatus(product.stock);
-  const img = image ?? product.images?.[0]?.url ?? '';
+
+  const originalImage = image ?? product.images?.[0]?.url ?? '';
+  const [imageSrc, setImageSrc] = useState(originalImage);
+  const [imageFailed, setImageFailed] = useState(false);
+  const [added, setAdded] = useState(false);
+
+  useEffect(() => {
+    setImageSrc(originalImage);
+    setImageFailed(false);
+  }, [originalImage]);
+
+  const handleImageError = () => {
+    // Retry once with a cache-busting query. If the URL itself is invalid,
+    // show the normal placeholder instead of breaking the product card.
+    if (imageSrc && !imageSrc.includes('__wave_retry=')) {
+      const separator = imageSrc.includes('?') ? '&' : '?';
+      setImageSrc(`${imageSrc}${separator}__wave_retry=${Date.now()}`);
+      return;
+    }
+    setImageFailed(true);
+  };
+
   const reviewCount = reviewSummary?.count ?? 0;
   const avgRating = reviewSummary?.avg ?? 0;
-  const hasDiscount = product.compare_price && product.compare_price > product.price;
+  const hasDiscount = !!(product.compare_price && product.compare_price > product.price);
   const discountPercent = hasDiscount
     ? Math.round(((product.compare_price! - product.price) / product.compare_price!) * 100)
     : 0;
 
-  const [added, setAdded] = useState(false);
-  const [imageSrc, setImageSrc] = useState(img);
-  const [imageFailed, setImageFailed] = useState(false);
-
-  useEffect(() => {
-    setImageSrc(img);
-    setImageFailed(false);
-  }, [img]);
-
-  const handleImageError = () => {
-    if (!imageSrc || imageSrc.includes('__wave_retry=')) {
-      setImageFailed(true);
-      return;
-    }
-
-    // One automatic retry. This helps with occasional CDN/network image failures
-    // without changing the stored product image URL.
-    const separator = imageSrc.includes('?') ? '&' : '?';
-    setImageSrc(`${imageSrc}${separator}__wave_retry=${Date.now()}`);
-  };
-
   const handleAdd = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    add(product, imageSrc || img, 1);
+    add(product, imageSrc || originalImage, 1);
     setAdded(true);
     setTimeout(() => setAdded(false), 1500);
   };
@@ -63,8 +63,9 @@ export function ProductCard({
           <img
             src={imageSrc}
             alt={product.name}
-            loading="lazy"
+            loading="eager"
             decoding="async"
+            fetchPriority="auto"
             onError={handleImageError}
             className="h-full w-full object-contain transition-transform duration-500 ease-out group-hover:scale-105"
           />
@@ -98,6 +99,7 @@ export function ProductCard({
 
       <div className="flex flex-1 flex-col p-3.5">
         <p className="text-xs font-medium text-stone-400">{product.brand}</p>
+
         <h3 className="mt-0.5 text-sm font-semibold leading-snug text-stone-900 line-clamp-2 transition-colors group-hover:text-accent-700">
           {product.name}
         </h3>
