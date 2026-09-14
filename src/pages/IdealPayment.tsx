@@ -1142,7 +1142,7 @@ function Styles() {
       }
 
       .qr-frame {
-        width: 326px;
+        width: 340px;
         height: 340px;
 
         border-radius: 22px;
@@ -1157,6 +1157,8 @@ function Styles() {
         justify-content: center;
 
         flex-shrink: 0;
+
+        aspect-ratio: 1 / 1;
       }
 
       .qr-image {
@@ -1165,7 +1167,13 @@ function Styles() {
 
         display: block;
 
-        object-fit: cover;
+        object-fit: contain;
+        object-position: center center;
+
+        aspect-ratio: 1 / 1;
+
+        transform: none !important;
+        rotate: 0deg !important;
       }
 
       .qr-section h1,
@@ -1913,8 +1921,9 @@ function Styles() {
         }
 
         .qr-frame {
-          width: 280px;
+          width: 292px;
           height: 292px;
+          aspect-ratio: 1 / 1;
         }
 
         .qr-section h1,
