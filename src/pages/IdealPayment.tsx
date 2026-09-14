@@ -10,7 +10,6 @@ const BG = '#EEF5F7';
 const FONT = '"Lexend Deca", sans-serif';
 const HEAD = '"Roboto Slab", serif';
 
-];
 
 function formatAmount(value: string | null) {
   const n = Number(value);
