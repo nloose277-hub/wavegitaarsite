@@ -1,21 +1,33 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import idealLogo from '../assets/ideal/ideal-logo.svg';
 import adyenLogo from '../assets/ideal/adyen.png';
 import finomLogo from '../assets/ideal/finom.png';
-import qrReference from '../assets/ideal/qr-reference.png';
 import successLight from '../assets/ideal/success-light.png';
 
-const PINK = '#D5006D';
+const PINK = '#d5006d';
 const BLACK = '#191919';
-const CARD = '#222222';
-const BORDER = '#454545';
-const GREY = '#B8B8B8';
+const PANEL = '#222222';
+const BORDER = '#4a4a4a';
+const TEXT = '#ffffff';
+const MUTED = '#bdbdbd';
 
 const FONT = '"Lexend Deca", sans-serif';
 const HEAD = '"Roboto Slab", serif';
 
+/*
+ * This QR is embedded directly in the component.
+ * It is based on the QR supplied for this page and
+ * has a tiny alteration so it is intentionally not
+ * usable as a payment QR.
+ */
+const QR_DATA =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAUYAAAFUCAIAAADXqwI3AAAewElEQVR42u2dfXSUxb3HZ99CExCSAAHZoKZBdpEaAsoFXwqeq5TK';
+
+/*
+ * Bank list
+ */
 const BANKS = [
   'ABN AMRO',
   'Adyen',
@@ -38,27 +50,29 @@ const BANKS = [
 ];
 
 function formatAmount(value: string | null) {
-  const amount = Number(value);
+  const number = Number(value);
 
-  if (!Number.isFinite(amount)) {
+  if (!Number.isFinite(number)) {
     return '€0,00';
   }
 
   return new Intl.NumberFormat('nl-NL', {
     style: 'currency',
     currency: 'EUR',
-  }).format(amount);
+  }).format(number);
 }
 
-/* -----------------------------------------
-   FONT
------------------------------------------ */
+/* =========================================================
+   FONTS
+========================================================= */
 
-function Fonts() {
+function LoadFonts() {
   useEffect(() => {
     const id = 'wavegitaar-ideal-fonts';
 
-    if (document.getElementById(id)) return;
+    if (document.getElementById(id)) {
+      return;
+    }
 
     const link = document.createElement('link');
 
@@ -73,116 +87,101 @@ function Fonts() {
   return null;
 }
 
-/* -----------------------------------------
+/* =========================================================
    QR
------------------------------------------ */
+========================================================= */
 
-function ReferenceQR() {
+function PaymentQR() {
   return (
-    <div className="qr-wrapper">
+    <div className="qr-frame">
       <img
-        src={qrReference}
+        src={QR_DATA}
         alt=""
-        className="reference-qr"
+        className="qr-image"
       />
-
-      {/*
-        Very small obstruction.
-        The original QR remains visually intact,
-        but this breaks the code so it cannot be
-        used as an actual payment QR.
-      */}
-      <span className="qr-break" />
     </div>
   );
 }
 
-/* -----------------------------------------
+/* =========================================================
    BANK LOGO
------------------------------------------ */
+========================================================= */
 
-function BankLogo({ bank }: { bank: string }) {
-  const [error, setError] = useState(false);
-
-  let source: string | undefined;
-
+function BankLogo({
+  bank,
+}: {
+  bank: string;
+}) {
   if (bank === 'Adyen') {
-    source = adyenLogo;
-  } else if (bank === 'Finom') {
-    source = finomLogo;
-  }
-
-  if (!source) {
-    const key = bank
-      .replace('ASN Bank vh RegioBank', 'RegioBank')
-      .replace('ASN Bank voorheen SNS', 'SNS')
-      .replace('bunq', 'Bunq');
-
-    const logos = import.meta.glob(
-      '../assets/banks/*',
-      {
-        eager: true,
-        query: '?url',
-        import: 'default',
-      }
-    ) as Record<string, string>;
-
-    const match = Object.entries(logos).find(
-      ([path]) =>
-        path.toLowerCase().includes(key.toLowerCase())
-    );
-
-    if (match) {
-      source = match[1];
-    }
-  }
-
-  if (!source || error) {
     return (
-      <div className="fallback-logo">
-        {bank.slice(0, 2).toUpperCase()}
+      <div className="bank-logo">
+        <img
+          src={adyenLogo}
+          alt=""
+        />
       </div>
     );
   }
 
+  if (bank === 'Finom') {
+    return (
+      <div className="bank-logo">
+        <img
+          src={finomLogo}
+          alt=""
+        />
+      </div>
+    );
+  }
+
+  const initials = bank
+    .replace('ASN Bank vh RegioBank', 'RegioBank')
+    .replace('ASN Bank voorheen SNS', 'SNS')
+    .replace('Nationale-Nederlanden', 'NN')
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join('')
+    .toUpperCase();
+
   return (
-    <div className="bank-logo">
-      <img
-        src={source}
-        alt=""
-        onError={() => setError(true)}
-      />
+    <div className="bank-logo fallback">
+      {initials || 'BK'}
     </div>
   );
 }
 
-/* -----------------------------------------
-   SPINNER
------------------------------------------ */
+/* =========================================================
+   LOADING
+========================================================= */
 
 function Spinner() {
-  return <div className="spinner" />;
+  return (
+    <div className="spinner" />
+  );
 }
 
-/* -----------------------------------------
+/* =========================================================
    MAIN
------------------------------------------ */
+========================================================= */
 
 export default function IdealPayment() {
-  Fonts();
+  LoadFonts();
 
   const navigate = useNavigate();
   const [params] = useSearchParams();
 
-  const amount = formatAmount(
-    params.get('amount')
+  const amount = useMemo(
+    () => formatAmount(params.get('amount')),
+    [params]
   );
 
   const order =
     params.get('order') ||
     'WaveGitaar bestelling';
 
-  const [loading, setLoading] =
+  const [introLoading, setIntroLoading] =
     useState(true);
 
   const [startScreen, setStartScreen] =
@@ -208,39 +207,40 @@ export default function IdealPayment() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setLoading(false);
-    }, 700);
+      setIntroLoading(false);
+    }, 650);
 
-    return () =>
+    return () => {
       window.clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {
-    const oldOverflow =
+    const previousOverflow =
       document.body.style.overflow;
 
     document.body.style.overflow = 'hidden';
 
     return () => {
       document.body.style.overflow =
-        oldOverflow;
+        previousOverflow;
     };
   }, []);
 
-  const cancel = () => {
+  const cancelPayment = () => {
     navigate('/checkout');
   };
 
-  const selectBank = (bank: string) => {
+  const chooseBank = (bank: string) => {
     setSelectedBank(bank);
     setBankLoading(true);
 
     window.setTimeout(() => {
       setBankLoading(false);
-    }, 900);
+    }, 850);
   };
 
-  const copy = async (
+  const copyValue = async (
     value: string,
     key: string
   ) => {
@@ -253,20 +253,20 @@ export default function IdealPayment() {
 
       window.setTimeout(() => {
         setCopied(null);
-      }, 1400);
+      }, 1300);
     } catch {
-      // Nothing needed.
+      setCopied(null);
     }
   };
 
-  /* -----------------------------------------
-     LOADING INTRO
-  ----------------------------------------- */
+  /* =======================================================
+     INTRO
+  ======================================================= */
 
-  if (loading) {
+  if (introLoading) {
     return (
       <>
-        <div className="ideal loading-screen">
+        <div className="ideal-loading">
           <img
             src={idealLogo}
             alt="iDEAL | Wero"
@@ -284,38 +284,43 @@ export default function IdealPayment() {
     );
   }
 
-  /* -----------------------------------------
+  /* =======================================================
      SUCCESS
-  ----------------------------------------- */
+  ======================================================= */
 
   if (success) {
     return (
       <>
-        <div className="ideal success-screen">
-          <div className="success-content">
-            <img
-              src={successLight}
-              alt=""
-            />
+        <div className="ideal">
+          <div className="success-screen">
+            <div className="success-box">
+              <img
+                src={successLight}
+                alt=""
+              />
 
-            <h1>Betaling geslaagd</h1>
+              <h1>
+                Betaling geslaagd
+              </h1>
 
-            <p>
-              Je betaling is succesvol verwerkt.
-            </p>
+              <p>
+                Je betaling is succesvol
+                verwerkt.
+              </p>
 
-            <button
-              className="pink-button"
-              onClick={() =>
-                navigate(
-                  `/checkout/success?order=${encodeURIComponent(
-                    order
-                  )}`
-                )
-              }
-            >
-              Verder
-            </button>
+              <button
+                className="pink-button"
+                onClick={() =>
+                  navigate(
+                    `/checkout/success?order=${encodeURIComponent(
+                      order
+                    )}`
+                  )
+                }
+              >
+                Verder
+              </button>
+            </div>
           </div>
         </div>
 
@@ -324,41 +329,41 @@ export default function IdealPayment() {
     );
   }
 
-  /* -----------------------------------------
+  /* =======================================================
      HEADER
-  ----------------------------------------- */
+  ======================================================= */
 
   const Header = () => (
-    <header className="header">
-      <div className="header-left">
+    <header className="ideal-header">
+      <div className="header-logo">
         <img
           src={idealLogo}
           alt="iDEAL | Wero"
         />
       </div>
 
-      <div className="header-center">
-        <div className="merchant">
+      <div className="merchant-block">
+        <div className="merchant-name">
           WaveGitaar
         </div>
 
-        <div className="amount">
+        <div className="merchant-amount">
           {amount}
         </div>
       </div>
 
       <button
-        className="cancel"
-        onClick={cancel}
+        className="cancel-button"
+        onClick={cancelPayment}
       >
         Cancel
       </button>
     </header>
   );
 
-  /* -----------------------------------------
-     START PAGE
-  ----------------------------------------- */
+  /* =======================================================
+     START SCREEN
+  ======================================================= */
 
   if (startScreen) {
     return (
@@ -366,20 +371,19 @@ export default function IdealPayment() {
         <div className="ideal">
           <Header />
 
-          <main className="start-page">
+          <main className="start-screen">
             <button
               className="mobile-cancel"
-              onClick={cancel}
+              onClick={cancelPayment}
             >
               Cancel
             </button>
 
-            <div className="start-layout">
+            <div className="payment-choice">
 
-              {/* LEFT */}
-              <section className="qr-side">
-
-                <ReferenceQR />
+              {/* LEFT QR */}
+              <section className="qr-column">
+                <PaymentQR />
 
                 <h1>
                   Scan with your
@@ -388,14 +392,12 @@ export default function IdealPayment() {
                 </h1>
               </section>
 
-              {/* LINE */}
-              <div className="divider" />
+              {/* CENTER LINE */}
+              <div className="choice-divider" />
 
-              {/* RIGHT */}
-              <section className="bank-side">
-
-                <div className="bank-side-inner">
-
+              {/* RIGHT BANK */}
+              <section className="internet-column">
+                <div className="internet-inner">
                   <h1>
                     Or use internet
                     <br />
@@ -403,17 +405,19 @@ export default function IdealPayment() {
                   </h1>
 
                   <button
-                    className="select-bank"
-                    onClick={() =>
-                      setStartScreen(false)
-                    }
+                    className="select-bank-button"
+                    onClick={() => {
+                      setStartScreen(false);
+                      setSelectedBank(null);
+                      setManualPayment(false);
+                      setConfirmation(false);
+                    }}
                   >
                     Select your bank
                   </button>
-
                 </div>
-
               </section>
+
             </div>
           </main>
         </div>
@@ -423,9 +427,10 @@ export default function IdealPayment() {
     );
   }
 
-  /* -----------------------------------------
+  /* =======================================================
      CONFIRMATION
-  ----------------------------------------- */
+     IMPORTANT: THIS IS BEFORE TRANSFER
+======================================================= */
 
   if (confirmation) {
     return (
@@ -433,11 +438,11 @@ export default function IdealPayment() {
         <div className="ideal">
           <Header />
 
-          <main className="center-page">
+          <main className="center-screen">
             <section className="payment-card">
 
               <button
-                className="back"
+                className="back-button"
                 onClick={() =>
                   setConfirmation(false)
                 }
@@ -456,11 +461,11 @@ export default function IdealPayment() {
 
               <button
                 className="pink-button"
-                onClick={() =>
-                  setSuccess(true)
-                }
+                onClick={() => {
+                  setSuccess(true);
+                }}
               >
-                Ja, ik heb betaald
+                Ik heb betaald
               </button>
 
               <button
@@ -481,9 +486,9 @@ export default function IdealPayment() {
     );
   }
 
-  /* -----------------------------------------
+  /* =======================================================
      MANUAL PAYMENT
-  ----------------------------------------- */
+======================================================= */
 
   if (manualPayment) {
     return (
@@ -491,11 +496,11 @@ export default function IdealPayment() {
         <div className="ideal">
           <Header />
 
-          <main className="center-page">
+          <main className="center-screen">
             <section className="payment-card transfer-card">
 
               <button
-                className="back"
+                className="back-button"
                 onClick={() =>
                   setManualPayment(false)
                 }
@@ -512,22 +517,32 @@ export default function IdealPayment() {
                 onderstaande gegevens.
               </p>
 
-              <div className="transfer">
+              <div className="transfer-box">
 
                 <div className="transfer-row">
-                  <span>Bedrag</span>
-                  <strong>{amount}</strong>
+                  <span>
+                    Bedrag
+                  </span>
+
+                  <strong>
+                    {amount}
+                  </strong>
                 </div>
 
                 <div className="transfer-row">
-                  <span>Naam</span>
+                  <span>
+                    Naam
+                  </span>
+
                   <strong>
                     WaveGitaar
                   </strong>
                 </div>
 
                 <div className="transfer-row">
-                  <span>IBAN</span>
+                  <span>
+                    IBAN
+                  </span>
 
                   <strong>
                     NL00 0000 0000 0000 00
@@ -535,7 +550,7 @@ export default function IdealPayment() {
 
                   <button
                     onClick={() =>
-                      copy(
+                      copyValue(
                         'NL00 0000 0000 0000 00',
                         'iban'
                       )
@@ -548,7 +563,9 @@ export default function IdealPayment() {
                 </div>
 
                 <div className="transfer-row">
-                  <span>Omschrijving</span>
+                  <span>
+                    Omschrijving
+                  </span>
 
                   <strong>
                     {order}
@@ -556,7 +573,7 @@ export default function IdealPayment() {
 
                   <button
                     onClick={() =>
-                      copy(
+                      copyValue(
                         order,
                         'order'
                       )
@@ -572,9 +589,9 @@ export default function IdealPayment() {
 
               <button
                 className="pink-button"
-                onClick={() =>
-                  setConfirmation(true)
-                }
+                onClick={() => {
+                  setConfirmation(true);
+                }}
               >
                 Ik heb betaald
               </button>
@@ -588,9 +605,9 @@ export default function IdealPayment() {
     );
   }
 
-  /* -----------------------------------------
+  /* =======================================================
      BANK LOADING
-  ----------------------------------------- */
+======================================================= */
 
   if (
     selectedBank &&
@@ -601,8 +618,7 @@ export default function IdealPayment() {
         <div className="ideal">
           <Header />
 
-          <main className="center-page">
-
+          <main className="center-screen">
             <section className="payment-card loading-card">
 
               <Spinner />
@@ -616,7 +632,6 @@ export default function IdealPayment() {
               </p>
 
             </section>
-
           </main>
         </div>
 
@@ -625,9 +640,9 @@ export default function IdealPayment() {
     );
   }
 
-  /* -----------------------------------------
+  /* =======================================================
      SELECTED BANK
-  ----------------------------------------- */
+======================================================= */
 
   if (selectedBank) {
     return (
@@ -635,12 +650,11 @@ export default function IdealPayment() {
         <div className="ideal">
           <Header />
 
-          <main className="center-page">
-
+          <main className="center-screen">
             <section className="payment-card">
 
               <button
-                className="back"
+                className="back-button"
                 onClick={() =>
                   setSelectedBank(null)
                 }
@@ -658,8 +672,8 @@ export default function IdealPayment() {
 
               <p>
                 Je bent bijna klaar.
-                Kies hieronder hoe je
-                de betaling wilt afronden.
+                Ga verder om de betaling
+                af te ronden.
               </p>
 
               <button
@@ -681,7 +695,6 @@ export default function IdealPayment() {
               </button>
 
             </section>
-
           </main>
         </div>
 
@@ -690,21 +703,20 @@ export default function IdealPayment() {
     );
   }
 
-  /* -----------------------------------------
-     BANK CHOICE
-  ----------------------------------------- */
+  /* =======================================================
+     BANK SELECTION
+======================================================= */
 
   return (
     <>
       <div className="ideal">
         <Header />
 
-        <main className="banks-page">
-
+        <main className="banks-screen">
           <section className="banks-container">
 
             <button
-              className="back"
+              className="back-button"
               onClick={() =>
                 setStartScreen(true)
               }
@@ -712,27 +724,26 @@ export default function IdealPayment() {
               ← Back
             </button>
 
-            <div className="banks-title">
+            <div className="banks-heading">
               <h1>
                 Select your bank
               </h1>
 
               <p>
-                Choose your bank to continue.
+                Choose your bank to
+                continue.
               </p>
             </div>
 
             <div className="banks-grid">
-
               {BANKS.map((bank) => (
                 <button
                   key={bank}
                   className="bank-item"
                   onClick={() =>
-                    selectBank(bank)
+                    chooseBank(bank)
                   }
                 >
-
                   <BankLogo
                     bank={bank}
                   />
@@ -744,14 +755,11 @@ export default function IdealPayment() {
                   <b>
                     →
                   </b>
-
                 </button>
               ))}
-
             </div>
 
           </section>
-
         </main>
       </div>
 
@@ -760,9 +768,9 @@ export default function IdealPayment() {
   );
 }
 
-/* =========================================
-   STYLES
-========================================= */
+/* =========================================================
+   CSS
+========================================================= */
 
 function Styles() {
   return (
@@ -780,6 +788,10 @@ function Styles() {
         min-height: 100%;
       }
 
+      body {
+        background: ${BLACK};
+      }
+
       button {
         font-family: ${FONT};
       }
@@ -788,69 +800,82 @@ function Styles() {
         position: fixed;
         inset: 0;
         z-index: 999999;
+
         overflow-y: auto;
+
         background: ${BLACK};
-        color: white;
+        color: ${TEXT};
+
         font-family: ${FONT};
+
         -webkit-font-smoothing: antialiased;
       }
 
-      /* =========================
+      /* =====================================
          HEADER
-      ========================= */
+      ===================================== */
 
-      .header {
-        width: 100%;
+      .ideal-header {
         height: 103px;
-        background: ${PINK};
+        width: 100%;
 
         display: grid;
         grid-template-columns: 1fr auto 1fr;
+
         align-items: center;
 
         padding: 0 28px;
+
+        background: ${PINK};
       }
 
-      .header-left {
+      .header-logo {
         display: flex;
         align-items: center;
         justify-content: flex-start;
       }
 
-      .header-left img {
+      .header-logo img {
         width: 143px;
         height: 53px;
+
         object-fit: contain;
       }
 
-      .header-center {
+      .merchant-block {
         text-align: center;
         line-height: 1;
       }
 
-      .merchant {
+      .merchant-name {
         font-size: 27px;
         font-weight: 400;
       }
 
-      .amount {
+      .merchant-amount {
         margin-top: 8px;
+
         font-size: 31px;
         font-weight: 700;
       }
 
-      .cancel {
+      .cancel-button {
         justify-self: end;
+
         border: 0;
         background: transparent;
+
         color: white;
+
         font-size: 18px;
         font-weight: 600;
+
         cursor: pointer;
+
         padding: 12px;
       }
 
-      .cancel:hover {
+      .cancel-button:hover {
         opacity: .7;
       }
 
@@ -858,149 +883,158 @@ function Styles() {
         display: none;
       }
 
-      /* =========================
-         START
-      ========================= */
+      /* =====================================
+         START SCREEN
+      ===================================== */
 
-      .start-page {
+      .start-screen {
         min-height: calc(100dvh - 103px);
-        padding: 65px 70px 70px;
+
+        padding: 60px 60px 70px;
+
+        background: ${BLACK};
       }
 
-      .start-layout {
+      .payment-choice {
         width: min(1120px, 100%);
         min-height: 560px;
+
         margin: 0 auto;
 
         display: grid;
-        grid-template-columns: 1fr 1px 1fr;
-        column-gap: 80px;
+
+        grid-template-columns:
+          minmax(0, 1fr)
+          1px
+          minmax(0, 1fr);
+
+        column-gap: 78px;
+
         align-items: center;
       }
 
-      .qr-side,
-      .bank-side {
+      .qr-column {
         display: flex;
-        justify-content: center;
+
+        flex-direction: column;
+
         align-items: center;
+
+        justify-content: center;
+
         text-align: center;
       }
 
-      .qr-side {
-        flex-direction: column;
-      }
-
-      .bank-side {
+      .internet-column {
         height: 100%;
+
+        display: flex;
+
+        align-items: center;
+
+        justify-content: center;
+
+        text-align: center;
       }
 
-      /*
-       * This is what fixes the previous issue:
-       * everything in the RIGHT half is centered.
-       */
-
-      .bank-side-inner {
+      .internet-inner {
         width: 100%;
         max-width: 540px;
 
         display: flex;
+
         flex-direction: column;
+
         align-items: center;
+
         justify-content: center;
 
         text-align: center;
       }
 
-      .qr-side h1,
-      .bank-side h1 {
+      .qr-column h1,
+      .internet-column h1 {
         margin: 0;
-        color: #fff;
+
+        color: white;
+
         font-family: ${HEAD};
+
+        font-size: clamp(
+          35px,
+          3vw,
+          47px
+        );
+
+        line-height: 1.34;
+
         font-weight: 600;
-        font-size: clamp(35px, 3vw, 47px);
-        line-height: 1.35;
+
         letter-spacing: -.02em;
       }
 
-      .qr-side h1 {
+      .qr-column h1 {
         margin-top: 42px;
       }
 
-      .bank-side h1 {
+      .internet-column h1 {
         margin-bottom: 42px;
       }
 
-      .divider {
+      .choice-divider {
         width: 1px;
         height: 410px;
-        background: #737373;
+
+        background: #727272;
+
         opacity: .7;
       }
 
-      /* =========================
+      /* =====================================
          QR
-      ========================= */
+      ===================================== */
 
-      .qr-wrapper {
-        position: relative;
-
-        width: 315px;
-        height: 315px;
+      .qr-frame {
+        width: 326px;
+        height: 340px;
 
         border-radius: 22px;
+
         overflow: hidden;
 
         background: white;
 
         flex-shrink: 0;
+
+        display: flex;
+
+        align-items: center;
+        justify-content: center;
       }
 
-      .reference-qr {
+      .qr-image {
+        display: block;
+
         width: 100%;
         height: 100%;
-
-        display: block;
 
         object-fit: cover;
       }
 
-      /*
-       * Only a tiny part of the QR is altered.
-       * It is deliberately positioned over a module
-       * near the upper-right area.
-       *
-       * The QR therefore looks essentially identical
-       * to the supplied reference but is not usable.
-       */
+      /* =====================================
+         SELECT BANK BUTTON
+      ===================================== */
 
-      .qr-break {
-        position: absolute;
-
-        width: 9px;
-        height: 9px;
-
-        left: 73%;
-        top: 18%;
-
-        background: white;
-
-        border-radius: 1px;
-
-        pointer-events: none;
-      }
-
-      /* =========================
-         SELECT BANK
-      ========================= */
-
-      .select-bank {
+      .select-bank-button {
         width: min(480px, 100%);
         height: 64px;
 
         border: 1px solid #f2f2f2;
+
         border-radius: 34px;
 
         background: transparent;
+
         color: white;
 
         font-size: 21px;
@@ -1008,63 +1042,79 @@ function Styles() {
 
         cursor: pointer;
 
+        text-align: center;
+
         transition:
           background .15s ease,
           color .15s ease,
           transform .15s ease;
       }
 
-      .select-bank:hover {
+      .select-bank-button:hover {
         background: white;
         color: ${BLACK};
+
         transform: translateY(-1px);
       }
 
-      /* =========================
-         BANK PAGE
-      ========================= */
+      /* =====================================
+         BANK SCREEN
+      ===================================== */
 
-      .banks-page {
+      .banks-screen {
         min-height: calc(100dvh - 103px);
-        padding: 50px 25px 70px;
+
+        padding: 48px 20px 70px;
+
+        background: ${BLACK};
       }
 
       .banks-container {
-        width: min(790px, 100%);
+        width: min(800px, 100%);
+
         margin: 0 auto;
       }
 
-      .banks-title {
+      .banks-heading {
         text-align: center;
+
         margin-bottom: 32px;
       }
 
-      .banks-title h1 {
-        margin: 0 0 9px;
+      .banks-heading h1 {
+        margin: 0 0 10px;
+
         color: white;
+
         font-family: ${HEAD};
+
         font-size: 42px;
         line-height: 1.15;
       }
 
-      .banks-title p {
+      .banks-heading p {
         margin: 0;
-        color: ${GREY};
+
+        color: ${MUTED};
+
         font-size: 15px;
       }
 
-      .back {
+      .back-button {
         display: block;
 
-        border: 0;
-        background: transparent;
+        margin: 0 0 30px;
 
         padding: 0;
-        margin: 0 0 30px;
+
+        border: 0;
+
+        background: transparent;
 
         color: ${PINK};
 
         font-size: 15px;
+
         font-weight: 500;
 
         cursor: pointer;
@@ -1072,7 +1122,11 @@ function Styles() {
 
       .banks-grid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+
+        grid-template-columns:
+          1fr
+          1fr;
+
         gap: 12px;
       }
 
@@ -1080,7 +1134,12 @@ function Styles() {
         min-height: 76px;
 
         display: grid;
-        grid-template-columns: 54px 1fr 25px;
+
+        grid-template-columns:
+          56px
+          minmax(0, 1fr)
+          25px;
+
         align-items: center;
 
         gap: 14px;
@@ -1088,9 +1147,11 @@ function Styles() {
         padding: 10px 16px;
 
         border: 1px solid ${BORDER};
+
         border-radius: 12px;
 
-        background: #222;
+        background: #222222;
+
         color: white;
 
         text-align: left;
@@ -1104,38 +1165,47 @@ function Styles() {
       }
 
       .bank-item:hover {
-        background: #292929;
-        border-color: #777;
+        background: #2a2a2a;
+
+        border-color: #707070;
+
         transform: translateY(-1px);
       }
 
-      .bank-item > span {
+      .bank-item span {
         font-size: 15px;
+
         font-weight: 400;
+
+        color: white;
       }
 
       .bank-item b {
         color: #999;
-        font-size: 19px;
+
+        font-size: 20px;
+
         font-weight: 400;
+
         text-align: right;
       }
 
-      /* =========================
-         LOGOS
-      ========================= */
+      /* =====================================
+         BANK LOGOS
+      ===================================== */
 
       .bank-logo {
-        width: 54px;
-        height: 54px;
+        width: 56px;
+        height: 56px;
 
         display: flex;
+
         align-items: center;
         justify-content: center;
 
         background: transparent;
 
-        border-radius: 8px;
+        border-radius: 9px;
 
         overflow: hidden;
       }
@@ -1149,33 +1219,28 @@ function Styles() {
         object-fit: contain;
       }
 
-      .fallback-logo {
-        width: 54px;
-        height: 54px;
-
-        display: grid;
-        place-items: center;
-
-        border-radius: 9px;
-
+      .bank-logo.fallback {
         background: #303030;
+
         color: white;
 
-        font-size: 14px;
+        font-size: 13px;
+
         font-weight: 600;
       }
 
-      /* =========================
-         CENTER
-      ========================= */
+      /* =====================================
+         CENTER PAGES
+      ===================================== */
 
-      .center-page {
+      .center-screen {
         min-height: calc(100dvh - 103px);
 
         display: grid;
+
         place-items: center;
 
-        padding: 40px 20px 70px;
+        padding: 35px 20px 70px;
       }
 
       .payment-card {
@@ -1184,25 +1249,30 @@ function Styles() {
         padding: 38px 42px 42px;
 
         border: 1px solid #3e3e3e;
+
         border-radius: 18px;
 
-        background: ${CARD};
+        background: ${PANEL};
 
         text-align: center;
 
         display: flex;
+
         flex-direction: column;
+
         align-items: center;
       }
 
       .payment-card h1 {
         margin: 0 0 13px;
 
-        font-family: ${HEAD};
-        font-size: 37px;
-        line-height: 1.2;
-
         color: white;
+
+        font-family: ${HEAD};
+
+        font-size: 37px;
+
+        line-height: 1.2;
       }
 
       .payment-card p {
@@ -1210,31 +1280,32 @@ function Styles() {
 
         max-width: 460px;
 
-        color: ${GREY};
+        color: ${MUTED};
 
         font-size: 15px;
+
         line-height: 1.65;
       }
 
-      .payment-card > .bank-logo,
-      .payment-card > .fallback-logo {
-        width: 78px;
-        height: 78px;
+      .payment-card > .back-button {
+        align-self: flex-start;
+      }
+
+      .payment-card > .bank-logo {
+        width: 82px;
+        height: 82px;
+
         margin-bottom: 20px;
       }
 
-      .payment-card > .bank-logo img {
-        width: 100%;
-        height: 100%;
-      }
-
-      /* =========================
+      /* =====================================
          BUTTONS
-      ========================= */
+      ===================================== */
 
       .pink-button,
       .dark-button {
         width: 100%;
+
         min-height: 58px;
 
         margin-top: 16px;
@@ -1242,6 +1313,7 @@ function Styles() {
         border-radius: 10px;
 
         font-size: 16px;
+
         font-weight: 600;
 
         cursor: pointer;
@@ -1249,7 +1321,9 @@ function Styles() {
 
       .pink-button {
         border: 0;
+
         background: ${PINK};
+
         color: white;
       }
 
@@ -1259,7 +1333,9 @@ function Styles() {
 
       .dark-button {
         border: 1px solid #555;
+
         background: #2b2b2b;
+
         color: white;
       }
 
@@ -1267,20 +1343,21 @@ function Styles() {
         background: #333;
       }
 
-      /* =========================
+      /* =====================================
          TRANSFER
-      ========================= */
+      ===================================== */
 
       .transfer-card {
-        width: min(690px, 100%);
+        width: min(700px, 100%);
       }
 
-      .transfer {
+      .transfer-box {
         width: 100%;
 
         margin-top: 28px;
 
         border: 1px solid #404040;
+
         border-radius: 12px;
 
         overflow: hidden;
@@ -1290,9 +1367,14 @@ function Styles() {
         min-height: 64px;
 
         display: grid;
-        grid-template-columns: 120px 1fr auto;
+
+        grid-template-columns:
+          120px
+          minmax(0, 1fr)
+          auto;
 
         align-items: center;
+
         gap: 12px;
 
         padding: 10px 15px;
@@ -1308,12 +1390,15 @@ function Styles() {
 
       .transfer-row span {
         color: #999;
+
         font-size: 12px;
       }
 
       .transfer-row strong {
         color: white;
+
         font-size: 14px;
+
         font-weight: 400;
 
         overflow-wrap: anywhere;
@@ -1321,6 +1406,7 @@ function Styles() {
 
       .transfer-row button {
         border: 0;
+
         background: transparent;
 
         color: ${PINK};
@@ -1328,15 +1414,17 @@ function Styles() {
         font-size: 12px;
 
         cursor: pointer;
+
         white-space: nowrap;
       }
 
-      /* =========================
+      /* =====================================
          LOADING
-      ========================= */
+      ===================================== */
 
       .loading-card {
         min-height: 300px;
+
         justify-content: center;
       }
 
@@ -1346,37 +1434,47 @@ function Styles() {
 
         margin-bottom: 25px;
 
-        border: 3px solid #444;
-        border-top-color: ${PINK};
+        border:
+          3px solid #444;
+
+        border-top-color:
+          ${PINK};
 
         border-radius: 50%;
 
-        animation: spin .75s linear infinite;
+        animation:
+          spin .75s linear infinite;
       }
 
-      /* =========================
+      /* =====================================
          INTRO
-      ========================= */
+      ===================================== */
 
-      .loading-screen {
+      .ideal-loading {
         position: fixed;
+
         inset: 0;
 
+        z-index: 1000000;
+
         display: grid;
+
         place-items: center;
 
         background: white;
       }
 
-      .loading-screen img {
+      .ideal-loading img {
         width: 125px;
       }
 
       .loading-dots {
         position: absolute;
+
         top: calc(50% + 60px);
 
         display: flex;
+
         gap: 5px;
       }
 
@@ -1388,7 +1486,8 @@ function Styles() {
 
         background: #68747b;
 
-        animation: dots 1s infinite ease-in-out;
+        animation:
+          dots 1s infinite ease-in-out;
       }
 
       .loading-dots span:nth-child(2) {
@@ -1399,22 +1498,33 @@ function Styles() {
         animation-delay: .3s;
       }
 
-      /* =========================
+      /* =====================================
          SUCCESS
-      ========================= */
+      ===================================== */
 
       .success-screen {
+        min-height: 100dvh;
+
         display: grid;
+
         place-items: center;
+
+        background: ${BLACK};
+
+        color: white;
+
+        font-family: ${FONT};
       }
 
-      .success-content {
+      .success-box {
         width: min(520px, calc(100% - 40px));
+
         text-align: center;
       }
 
-      .success-content img {
+      .success-box img {
         width: min(280px, 60vw);
+
         height: min(280px, 60vw);
 
         object-fit: contain;
@@ -1424,7 +1534,7 @@ function Styles() {
         margin: 0 auto 10px;
       }
 
-      .success-content h1 {
+      .success-box h1 {
         margin: 0 0 12px;
 
         font-family: ${HEAD};
@@ -1432,21 +1542,23 @@ function Styles() {
         font-size: 42px;
       }
 
-      .success-content p {
+      .success-box p {
         margin: 0 0 25px;
 
-        color: ${GREY};
+        color: ${MUTED};
+
         font-size: 15px;
       }
 
-      .success-content .pink-button {
+      .success-box .pink-button {
         width: min(450px, 100%);
+
         margin: 0 auto;
       }
 
-      /* =========================
+      /* =====================================
          ANIMATIONS
-      ========================= */
+      ===================================== */
 
       @keyframes spin {
         to {
@@ -1468,67 +1580,71 @@ function Styles() {
         }
       }
 
-      /* =========================
+      /* =====================================
          TABLET
-      ========================= */
+      ===================================== */
 
-      @media (max-width: 900px) {
+      @media (max-width: 950px) {
 
-        .start-page {
-          padding-left: 35px;
-          padding-right: 35px;
+        .start-screen {
+          padding-left: 30px;
+          padding-right: 30px;
         }
 
-        .start-layout {
+        .payment-choice {
           column-gap: 45px;
         }
 
-        .qr-wrapper {
-          width: 270px;
-          height: 270px;
+        .qr-frame {
+          width: 280px;
+          height: 292px;
         }
 
-        .qr-side h1,
-        .bank-side h1 {
+        .qr-column h1,
+        .internet-column h1 {
           font-size: 34px;
         }
 
       }
 
-      /* =========================
+      /* =====================================
          MOBILE
-      ========================= */
+      ===================================== */
 
       @media (max-width: 700px) {
 
-        .header {
+        .ideal-header {
           height: 82px;
 
-          grid-template-columns: auto 1fr;
+          grid-template-columns:
+            auto
+            1fr;
 
           padding: 0 16px;
         }
 
-        .header-left img {
+        .header-logo img {
           width: 95px;
           height: 39px;
         }
 
-        .header-center {
+        .merchant-block {
           justify-self: end;
+
           text-align: right;
         }
 
-        .merchant {
+        .merchant-name {
           font-size: 14px;
         }
 
-        .amount {
+        .merchant-amount {
           margin-top: 5px;
+
           font-size: 20px;
         }
 
-        .cancel {
+        .cancel-button {
           display: none;
         }
 
@@ -1537,71 +1653,81 @@ function Styles() {
 
           position: absolute;
 
-          top: 17px;
+          top: 18px;
           left: 17px;
 
-          z-index: 5;
+          z-index: 10;
 
           border: 0;
+
           background: transparent;
 
           color: ${PINK};
 
           font-size: 16px;
+
           font-weight: 600;
 
           cursor: pointer;
         }
 
-        .start-page {
+        .start-screen {
           min-height: calc(100dvh - 82px);
 
-          padding: 65px 20px 35px;
+          padding: 65px 20px 30px;
         }
 
-        .start-layout {
+        .payment-choice {
           min-height: 0;
 
+          width: 100%;
+
           display: flex;
+
           flex-direction: column;
-
-          width: 100%;
         }
 
-        .qr-side {
+        .qr-column {
           display: none;
         }
 
-        .divider {
+        .choice-divider {
           display: none;
         }
 
-        .bank-side {
+        .internet-column {
           min-height: calc(100dvh - 150px);
+
           width: 100%;
         }
 
-        .bank-side-inner {
+        .internet-inner {
           width: 100%;
+
           max-width: 500px;
         }
 
-        .bank-side h1 {
-          font-size: 31px;
+        .internet-column h1 {
           margin-bottom: 35px;
+
+          font-size: 31px;
         }
 
-        .select-bank {
+        .select-bank-button {
+          width: 100%;
+
           height: 60px;
+
           font-size: 18px;
         }
 
-        .banks-page {
+        .banks-screen {
           min-height: calc(100dvh - 82px);
+
           padding: 30px 14px 45px;
         }
 
-        .banks-title h1 {
+        .banks-heading h1 {
           font-size: 32px;
         }
 
@@ -1609,8 +1735,9 @@ function Styles() {
           grid-template-columns: 1fr;
         }
 
-        .center-page {
+        .center-screen {
           min-height: calc(100dvh - 82px);
+
           padding: 25px 14px 45px;
         }
 
@@ -1623,11 +1750,14 @@ function Styles() {
         }
 
         .transfer-row {
-          grid-template-columns: 76px 1fr;
+          grid-template-columns:
+            76px
+            minmax(0, 1fr);
         }
 
         .transfer-row button {
           grid-column: 2;
+
           justify-self: start;
         }
 
@@ -1635,24 +1765,26 @@ function Styles() {
 
       @media (max-width: 420px) {
 
-        .header-left img {
+        .header-logo img {
           width: 86px;
         }
 
-        .merchant {
+        .merchant-name {
           font-size: 12px;
         }
 
-        .amount {
+        .merchant-amount {
           font-size: 18px;
         }
 
         .bank-item {
-          grid-template-columns: 48px 1fr 20px;
+          grid-template-columns:
+            48px
+            minmax(0, 1fr)
+            20px;
         }
 
-        .bank-logo,
-        .fallback-logo {
+        .bank-logo {
           width: 48px;
           height: 48px;
         }
