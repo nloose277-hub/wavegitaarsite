@@ -15,6 +15,7 @@ const Cart = lazy(() => import('./pages/Cart'));
 const Checkout = lazy(() => import('./pages/Checkout'));
 const CheckoutGate = lazy(() => import('./pages/CheckoutGate'));
 const CheckoutSuccess = lazy(() => import('./pages/CheckoutSuccess'));
+const IdealPayment = lazy(() => import('./pages/IdealPayment'));
 const TrackOrder = lazy(() => import('./pages/TrackOrder'));
 const About = lazy(() => import('./pages/About'));
 const Contact = lazy(() => import('./pages/Contact'));
@@ -83,6 +84,7 @@ function App() {
             <Route path="/checkout/gate" element={<CheckoutGate />} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/checkout/success" element={<CheckoutSuccess />} />
+            <Route path="/ideal-betalen" element={<IdealPayment />} />
             <Route path="/register" element={<Register />} />
             <Route path="/login" element={<Login />} />
             <Route path="/account" element={<Account />} />

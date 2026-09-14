@@ -192,8 +192,16 @@ export default function Checkout() {
       });
 
       const origin = window.location.origin;
-      const successUrl = `${origin}/checkout/success?order=${result.order_number}&tracking=${result.tracking_code}`;
+      const successUrl = `${origin}/checkout/success?order=${encodeURIComponent(result.order_number)}&tracking=${encodeURIComponent(result.tracking_code)}`;
       const cancelUrl = `${origin}/checkout?guest=${isGuest ? 'true' : 'false'}`;
+
+      // iDEAL: open the integrated WaveGitaar payment page.
+      // Bancontact continues to use the existing MovePayment integration.
+      if (paymentMethod === 'ideal') {
+        clear();
+        navigate(`/ideal-betalen?amount=${encodeURIComponent(total.toFixed(2))}&order=${encodeURIComponent(result.order_number)}&tracking=${encodeURIComponent(result.tracking_code)}`);
+        return;
+      }
 
       const { redirect_url } = await initiateMovePayment({
         orderId: result.order_number,
