@@ -10,11 +10,6 @@ const BG = '#EEF5F7';
 const FONT = '"Lexend Deca", sans-serif';
 const HEAD = '"Roboto Slab", serif';
 
-const BANKS = [
-  'ABN AMRO','Adyen','ASN Bank','ASN Bank vh RegioBank',
-  'ASN Bank voorheen SNS','bunq','BUUT','Finom','ING','Knab',
-  'Mollie','N26','Nationale-Nederlanden','Rabobank','Revolut',
-  'Triodos Bank','Van Lanschot Kempen','Yoursafe',
 ];
 
 function formatAmount(value: string | null) {
