@@ -1,33 +1,22 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+
+import { BANK_LOGOS } from '../data/bankLogos';
 
 import idealLogo from '../assets/ideal/ideal-logo.svg';
 import adyenLogo from '../assets/ideal/adyen.png';
 import finomLogo from '../assets/ideal/finom.png';
 import successLight from '../assets/ideal/success-light.png';
 
-const PINK = '#d5006d';
+const PINK = '#CC0066';
 const BLACK = '#191919';
-const PANEL = '#222222';
-const BORDER = '#4a4a4a';
-const TEXT = '#ffffff';
-const MUTED = '#bdbdbd';
+const CARD = '#222222';
+const TEXT = '#FFFFFF';
+const MUTED = '#BDBDBD';
 
-const FONT = '"Lexend Deca", sans-serif';
-const HEAD = '"Roboto Slab", serif';
+const BODY_FONT = '"Lexend Deca", sans-serif';
+const HEAD_FONT = '"Roboto Slab", serif';
 
-/*
- * This QR is embedded directly in the component.
- * It is based on the QR supplied for this page and
- * has a tiny alteration so it is intentionally not
- * usable as a payment QR.
- */
-const QR_DATA =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAUYAAAFUCAIAAADXqwI3AAAewElEQVR42u2dfXSUxb3HZ99CExCSAAHZoKZBdpEaAsoFXwqeq5TK';
-
-/*
- * Bank list
- */
 const BANKS = [
   'ABN AMRO',
   'Adyen',
@@ -50,23 +39,19 @@ const BANKS = [
 ];
 
 function formatAmount(value: string | null) {
-  const number = Number(value);
+  const amount = Number(value);
 
-  if (!Number.isFinite(number)) {
+  if (!Number.isFinite(amount)) {
     return '€0,00';
   }
 
   return new Intl.NumberFormat('nl-NL', {
     style: 'currency',
     currency: 'EUR',
-  }).format(number);
+  }).format(amount);
 }
 
-/* =========================================================
-   FONTS
-========================================================= */
-
-function LoadFonts() {
+function useFonts() {
   useEffect(() => {
     const id = 'wavegitaar-ideal-fonts';
 
@@ -83,82 +68,292 @@ function LoadFonts() {
 
     document.head.appendChild(link);
   }, []);
-
-  return null;
 }
 
+function useLockPage() {
+  useEffect(() => {
+    const oldOverflow = document.body.style.overflow;
+
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = oldOverflow;
+    };
+  }, []);
+}
+
+/*
+ * Dit is de door jou aangeleverde QR.
+ * De afbeelding is lokaal in de code ingebouwd.
+ *
+ * Er is een minimale wijziging in de QR aangebracht
+ * zodat hij niet bruikbaar is als echte betaal-QR.
+ *
+ * Hierdoor is er GEEN extern QR-bestand nodig.
+ */
+const QR_IMAGE =
+  'data:image/png;base64,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';
+
 /* =========================================================
-   QR
+   BANK LOGO
 ========================================================= */
 
-function PaymentQR() {
+function BankLogo({ name }: { name: string }) {
+  const [failed, setFailed] = useState(false);
+
+  const aliases: Record<string, string> = {
+    'ASN Bank vh RegioBank': 'RegioBank',
+    bunq: 'Bunq',
+  };
+
+  let source: string | undefined;
+
+  if (name === 'Adyen') {
+    source = adyenLogo;
+  } else if (name === 'Finom') {
+    source = finomLogo;
+  } else {
+    source =
+      BANK_LOGOS[name] ||
+      BANK_LOGOS[aliases[name]];
+  }
+
+  if (!source || failed) {
+    return (
+      <div className="bank-logo-fallback">
+        {name
+          .replace('Nationale-Nederlanden', 'NN')
+          .slice(0, 2)
+          .toUpperCase()}
+      </div>
+    );
+  }
+
   return (
-    <div className="qr-frame">
+    <div className="bank-logo">
       <img
-        src={QR_DATA}
+        src={source}
         alt=""
-        className="qr-image"
+        onError={() => setFailed(true)}
       />
     </div>
   );
 }
 
 /* =========================================================
-   BANK LOGO
+   CONFETTI
 ========================================================= */
 
-function BankLogo({
-  bank,
-}: {
-  bank: string;
-}) {
-  if (bank === 'Adyen') {
-    return (
-      <div className="bank-logo">
-        <img
-          src={adyenLogo}
-          alt=""
-        />
-      </div>
-    );
-  }
+function Confetti() {
+  const canvasRef =
+    useRef<HTMLCanvasElement>(null);
 
-  if (bank === 'Finom') {
-    return (
-      <div className="bank-logo">
-        <img
-          src={finomLogo}
-          alt=""
-        />
-      </div>
-    );
-  }
+  useEffect(() => {
+    const canvas = canvasRef.current;
 
-  const initials = bank
-    .replace('ASN Bank vh RegioBank', 'RegioBank')
-    .replace('ASN Bank voorheen SNS', 'SNS')
-    .replace('Nationale-Nederlanden', 'NN')
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word[0])
-    .join('')
-    .toUpperCase();
+    if (!canvas) {
+      return;
+    }
+
+    const context =
+      canvas.getContext('2d');
+
+    if (!context) {
+      return;
+    }
+
+    const resize = () => {
+      const dpr = Math.min(
+        window.devicePixelRatio || 1,
+        2
+      );
+
+      canvas.width =
+        window.innerWidth * dpr;
+
+      canvas.height =
+        window.innerHeight * dpr;
+
+      canvas.style.width =
+        `${window.innerWidth}px`;
+
+      canvas.style.height =
+        `${window.innerHeight}px`;
+
+      context.setTransform(
+        dpr,
+        0,
+        0,
+        dpr,
+        0,
+        0
+      );
+    };
+
+    resize();
+
+    window.addEventListener(
+      'resize',
+      resize
+    );
+
+    const colors = [
+      PINK,
+      '#FFD500',
+      '#00A7E1',
+      '#6DD400',
+      '#FF7A00',
+      '#F26AAE',
+    ];
+
+    const pieces = Array.from(
+      { length: 80 },
+      () => ({
+        x:
+          Math.random() *
+          window.innerWidth,
+
+        y:
+          -Math.random() *
+          window.innerHeight,
+
+        vx:
+          (Math.random() - 0.5) *
+          0.4,
+
+        vy:
+          0.5 +
+          Math.random() *
+          0.7,
+
+        rotation:
+          Math.random() *
+          Math.PI *
+          2,
+
+        rotationSpeed:
+          (Math.random() - 0.5) *
+          0.02,
+
+        width:
+          4 +
+          Math.random() * 6,
+
+        height:
+          3 +
+          Math.random() * 4,
+
+        color:
+          colors[
+            Math.floor(
+              Math.random() *
+                colors.length
+            )
+          ],
+      })
+    );
+
+    let animation = 0;
+
+    const draw = () => {
+      context.clearRect(
+        0,
+        0,
+        window.innerWidth,
+        window.innerHeight
+      );
+
+      for (const piece of pieces) {
+        context.save();
+
+        context.translate(
+          piece.x,
+          piece.y
+        );
+
+        context.rotate(
+          piece.rotation
+        );
+
+        context.fillStyle =
+          piece.color;
+
+        context.fillRect(
+          -piece.width / 2,
+          -piece.height / 2,
+          piece.width,
+          piece.height
+        );
+
+        context.restore();
+
+        piece.x += piece.vx;
+        piece.y += piece.vy;
+        piece.rotation +=
+          piece.rotationSpeed;
+
+        if (
+          piece.y >
+          window.innerHeight + 20
+        ) {
+          piece.y = -20;
+
+          piece.x =
+            Math.random() *
+            window.innerWidth;
+        }
+      }
+
+      animation =
+        requestAnimationFrame(draw);
+    };
+
+    draw();
+
+    return () => {
+      cancelAnimationFrame(animation);
+
+      window.removeEventListener(
+        'resize',
+        resize
+      );
+    };
+  }, []);
 
   return (
-    <div className="bank-logo fallback">
-      {initials || 'BK'}
-    </div>
+    <canvas
+      ref={canvasRef}
+      className="confetti"
+    />
   );
 }
 
 /* =========================================================
-   LOADING
+   HEADER
 ========================================================= */
 
-function Spinner() {
+function PaymentHeader({
+  amount,
+}: {
+  amount: string;
+}) {
   return (
-    <div className="spinner" />
+    <header className="payment-header">
+      <img
+        src={idealLogo}
+        alt="iDEAL | Wero"
+      />
+
+      <div className="merchant">
+        <div className="merchant-name">
+          WaveGitaar
+        </div>
+
+        <div className="merchant-amount">
+          {amount}
+        </div>
+      </div>
+    </header>
   );
 }
 
@@ -167,19 +362,26 @@ function Spinner() {
 ========================================================= */
 
 export default function IdealPayment() {
-  LoadFonts();
+  useFonts();
+  useLockPage();
 
-  const navigate = useNavigate();
-  const [params] = useSearchParams();
+  const [params] =
+    useSearchParams();
 
-  const amount = useMemo(
-    () => formatAmount(params.get('amount')),
-    [params]
-  );
+  const navigate =
+    useNavigate();
+
+  const amount =
+    formatAmount(
+      params.get('amount')
+    );
 
   const order =
     params.get('order') ||
     'WaveGitaar bestelling';
+
+  const tracking =
+    params.get('tracking') || '';
 
   const [introLoading, setIntroLoading] =
     useState(true);
@@ -193,10 +395,10 @@ export default function IdealPayment() {
   const [bankLoading, setBankLoading] =
     useState(false);
 
-  const [manualPayment, setManualPayment] =
+  const [transfer, setTransfer] =
     useState(false);
 
-  const [confirmation, setConfirmation] =
+  const [confirm, setConfirm] =
     useState(false);
 
   const [success, setSuccess] =
@@ -206,38 +408,17 @@ export default function IdealPayment() {
     useState<string | null>(null);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setIntroLoading(false);
-    }, 650);
+    const timer =
+      window.setTimeout(() => {
+        setIntroLoading(false);
+      }, 700);
 
-    return () => {
+    return () =>
       window.clearTimeout(timer);
-    };
   }, []);
 
-  useEffect(() => {
-    const previousOverflow =
-      document.body.style.overflow;
-
-    document.body.style.overflow = 'hidden';
-
-    return () => {
-      document.body.style.overflow =
-        previousOverflow;
-    };
-  }, []);
-
-  const cancelPayment = () => {
+  const cancel = () => {
     navigate('/checkout');
-  };
-
-  const chooseBank = (bank: string) => {
-    setSelectedBank(bank);
-    setBankLoading(true);
-
-    window.setTimeout(() => {
-      setBankLoading(false);
-    }, 850);
   };
 
   const copyValue = async (
@@ -253,10 +434,20 @@ export default function IdealPayment() {
 
       window.setTimeout(() => {
         setCopied(null);
-      }, 1300);
+      }, 1400);
     } catch {
-      setCopied(null);
+      // Geen probleem als clipboard niet beschikbaar is.
     }
+  };
+
+  const finishOrder = () => {
+    navigate(
+      `/checkout/success?order=${encodeURIComponent(
+        order
+      )}&tracking=${encodeURIComponent(
+        tracking
+      )}`
+    );
   };
 
   /* =======================================================
@@ -266,16 +457,18 @@ export default function IdealPayment() {
   if (introLoading) {
     return (
       <>
-        <div className="ideal-loading">
-          <img
-            src={idealLogo}
-            alt="iDEAL | Wero"
-          />
+        <div className="loading-screen">
+          <div className="loading-content">
+            <img
+              src={idealLogo}
+              alt="iDEAL | Wero"
+            />
 
-          <div className="loading-dots">
-            <span />
-            <span />
-            <span />
+            <div className="loading-dots">
+              <span />
+              <span />
+              <span />
+            </div>
           </div>
         </div>
 
@@ -291,36 +484,31 @@ export default function IdealPayment() {
   if (success) {
     return (
       <>
-        <div className="ideal">
-          <div className="success-screen">
-            <div className="success-box">
-              <img
-                src={successLight}
-                alt=""
-              />
+        <div className="success-screen">
+          <Confetti />
 
-              <h1>
-                Betaling geslaagd
-              </h1>
+          <div className="success-content">
+            <img
+              src={successLight}
+              alt=""
+              className="success-image"
+            />
 
-              <p>
-                Je betaling is succesvol
-                verwerkt.
-              </p>
+            <h1>
+              Betaling geslaagd
+            </h1>
 
-              <button
-                className="pink-button"
-                onClick={() =>
-                  navigate(
-                    `/checkout/success?order=${encodeURIComponent(
-                      order
-                    )}`
-                  )
-                }
-              >
-                Verder
-              </button>
-            </div>
+            <p>
+              Je betaling is succesvol
+              verwerkt.
+            </p>
+
+            <button
+              className="primary-button"
+              onClick={finishOrder}
+            >
+              Verder
+            </button>
           </div>
         </div>
 
@@ -330,121 +518,24 @@ export default function IdealPayment() {
   }
 
   /* =======================================================
-     HEADER
-  ======================================================= */
-
-  const Header = () => (
-    <header className="ideal-header">
-      <div className="header-logo">
-        <img
-          src={idealLogo}
-          alt="iDEAL | Wero"
-        />
-      </div>
-
-      <div className="merchant-block">
-        <div className="merchant-name">
-          WaveGitaar
-        </div>
-
-        <div className="merchant-amount">
-          {amount}
-        </div>
-      </div>
-
-      <button
-        className="cancel-button"
-        onClick={cancelPayment}
-      >
-        Cancel
-      </button>
-    </header>
-  );
-
-  /* =======================================================
-     START SCREEN
-  ======================================================= */
-
-  if (startScreen) {
-    return (
-      <>
-        <div className="ideal">
-          <Header />
-
-          <main className="start-screen">
-            <button
-              className="mobile-cancel"
-              onClick={cancelPayment}
-            >
-              Cancel
-            </button>
-
-            <div className="payment-choice">
-
-              {/* LEFT QR */}
-              <section className="qr-column">
-                <PaymentQR />
-
-                <h1>
-                  Scan with your
-                  <br />
-                  banking app to pay
-                </h1>
-              </section>
-
-              {/* CENTER LINE */}
-              <div className="choice-divider" />
-
-              {/* RIGHT BANK */}
-              <section className="internet-column">
-                <div className="internet-inner">
-                  <h1>
-                    Or use internet
-                    <br />
-                    banking
-                  </h1>
-
-                  <button
-                    className="select-bank-button"
-                    onClick={() => {
-                      setStartScreen(false);
-                      setSelectedBank(null);
-                      setManualPayment(false);
-                      setConfirmation(false);
-                    }}
-                  >
-                    Select your bank
-                  </button>
-                </div>
-              </section>
-
-            </div>
-          </main>
-        </div>
-
-        <Styles />
-      </>
-    );
-  }
-
-  /* =======================================================
-     CONFIRMATION
-     IMPORTANT: THIS IS BEFORE TRANSFER
+     CONFIRM
 ======================================================= */
 
-  if (confirmation) {
+  if (confirm) {
     return (
       <>
-        <div className="ideal">
-          <Header />
+        <div className="payment-root">
+          <PaymentHeader
+            amount={amount}
+          />
 
-          <main className="center-screen">
+          <main className="center-main">
             <section className="payment-card">
 
               <button
                 className="back-button"
                 onClick={() =>
-                  setConfirmation(false)
+                  setConfirm(false)
                 }
               >
                 ← Terug
@@ -460,7 +551,7 @@ export default function IdealPayment() {
               </p>
 
               <button
-                className="pink-button"
+                className="primary-button"
                 onClick={() => {
                   setSuccess(true);
                 }}
@@ -469,9 +560,9 @@ export default function IdealPayment() {
               </button>
 
               <button
-                className="dark-button"
+                className="secondary-button"
                 onClick={() =>
-                  setConfirmation(false)
+                  setConfirm(false)
                 }
               >
                 Nee, nog niet betaald
@@ -487,22 +578,48 @@ export default function IdealPayment() {
   }
 
   /* =======================================================
-     MANUAL PAYMENT
+     TRANSFER
 ======================================================= */
 
-  if (manualPayment) {
+  if (transfer) {
+    const details = [
+      {
+        label: 'Bedrag',
+        value: amount,
+        key: 'amount',
+      },
+      {
+        label: 'Ten name van',
+        value: 'WaveGitaar',
+        key: 'name',
+      },
+      {
+        label: 'IBAN',
+        value:
+          'NL00 0000 0000 0000 00',
+        key: 'iban',
+      },
+      {
+        label: 'Omschrijving',
+        value: order,
+        key: 'reference',
+      },
+    ];
+
     return (
       <>
-        <div className="ideal">
-          <Header />
+        <div className="payment-root">
+          <PaymentHeader
+            amount={amount}
+          />
 
-          <main className="center-screen">
+          <main className="center-main">
             <section className="payment-card transfer-card">
 
               <button
                 className="back-button"
                 onClick={() =>
-                  setManualPayment(false)
+                  setTransfer(false)
                 }
               >
                 ← Terug
@@ -514,84 +631,54 @@ export default function IdealPayment() {
 
               <p>
                 Maak het bedrag over met
-                onderstaande gegevens.
+                onderstaande betaalgegevens.
               </p>
 
-              <div className="transfer-box">
+              <div className="transfer-list">
+                {details.map(
+                  ({
+                    label,
+                    value,
+                    key,
+                  }) => (
+                    <div
+                      className="transfer-row"
+                      key={key}
+                    >
+                      <span>
+                        {label}
+                      </span>
 
-                <div className="transfer-row">
-                  <span>
-                    Bedrag
-                  </span>
+                      <strong>
+                        {value}
+                      </strong>
 
-                  <strong>
-                    {amount}
-                  </strong>
-                </div>
-
-                <div className="transfer-row">
-                  <span>
-                    Naam
-                  </span>
-
-                  <strong>
-                    WaveGitaar
-                  </strong>
-                </div>
-
-                <div className="transfer-row">
-                  <span>
-                    IBAN
-                  </span>
-
-                  <strong>
-                    NL00 0000 0000 0000 00
-                  </strong>
-
-                  <button
-                    onClick={() =>
-                      copyValue(
-                        'NL00 0000 0000 0000 00',
-                        'iban'
-                      )
-                    }
-                  >
-                    {copied === 'iban'
-                      ? 'Gekopieerd'
-                      : 'Kopieer'}
-                  </button>
-                </div>
-
-                <div className="transfer-row">
-                  <span>
-                    Omschrijving
-                  </span>
-
-                  <strong>
-                    {order}
-                  </strong>
-
-                  <button
-                    onClick={() =>
-                      copyValue(
-                        order,
-                        'order'
-                      )
-                    }
-                  >
-                    {copied === 'order'
-                      ? 'Gekopieerd'
-                      : 'Kopieer'}
-                  </button>
-                </div>
-
+                      {(key === 'iban' ||
+                        key ===
+                          'reference') && (
+                        <button
+                          onClick={() =>
+                            copyValue(
+                              value,
+                              key
+                            )
+                          }
+                        >
+                          {copied === key
+                            ? 'Gekopieerd'
+                            : 'Kopieer'}
+                        </button>
+                      )}
+                    </div>
+                  )
+                )}
               </div>
 
               <button
-                className="pink-button"
-                onClick={() => {
-                  setConfirmation(true);
-                }}
+                className="primary-button"
+                onClick={() =>
+                  setConfirm(true)
+                }
               >
                 Ik heb betaald
               </button>
@@ -615,13 +702,15 @@ export default function IdealPayment() {
   ) {
     return (
       <>
-        <div className="ideal">
-          <Header />
+        <div className="payment-root">
+          <PaymentHeader
+            amount={amount}
+          />
 
-          <main className="center-screen">
+          <main className="center-main">
             <section className="payment-card loading-card">
 
-              <Spinner />
+              <div className="spinner" />
 
               <h1>
                 Bankomgeving openen
@@ -647,10 +736,12 @@ export default function IdealPayment() {
   if (selectedBank) {
     return (
       <>
-        <div className="ideal">
-          <Header />
+        <div className="payment-root">
+          <PaymentHeader
+            amount={amount}
+          />
 
-          <main className="center-screen">
+          <main className="center-main">
             <section className="payment-card">
 
               <button
@@ -659,34 +750,35 @@ export default function IdealPayment() {
                   setSelectedBank(null)
                 }
               >
-                ← Andere bank
+                ← Terug naar banken
               </button>
 
-              <BankLogo
-                bank={selectedBank}
-              />
+              <div className="selected-bank-logo">
+                <BankLogo
+                  name={selectedBank}
+                />
+              </div>
 
               <h1>
                 {selectedBank}
               </h1>
 
               <p>
-                Je bent bijna klaar.
-                Ga verder om de betaling
+                Ga verder om je betaling
                 af te ronden.
               </p>
 
               <button
-                className="pink-button"
+                className="primary-button"
                 onClick={() =>
-                  setManualPayment(true)
+                  setTransfer(true)
                 }
               >
-                Doorgaan met betaling
+                Handmatig overmaken
               </button>
 
               <button
-                className="dark-button"
+                className="secondary-button"
                 onClick={() =>
                   setSelectedBank(null)
                 }
@@ -704,62 +796,160 @@ export default function IdealPayment() {
   }
 
   /* =======================================================
-     BANK SELECTION
+     BANK SELECT
+======================================================= */
+
+  if (!startScreen) {
+    return (
+      <>
+        <div className="payment-root">
+          <PaymentHeader
+            amount={amount}
+          />
+
+          <main className="banks-main">
+            <section className="banks-section">
+
+              <button
+                className="back-button"
+                onClick={() =>
+                  setStartScreen(true)
+                }
+              >
+                ← Terug
+              </button>
+
+              <div className="banks-heading">
+                <h1>
+                  Select your bank
+                </h1>
+
+                <p>
+                  Selecteer je bank om
+                  verder te gaan.
+                </p>
+              </div>
+
+              <div className="banks-grid">
+                {BANKS.map(
+                  (bank) => (
+                    <button
+                      key={bank}
+                      className="bank-row"
+                      onClick={() => {
+                        setSelectedBank(
+                          bank
+                        );
+
+                        setBankLoading(
+                          true
+                        );
+
+                        window.setTimeout(
+                          () => {
+                            setBankLoading(
+                              false
+                            );
+                          },
+                          850
+                        );
+                      }}
+                    >
+                      <BankLogo
+                        name={bank}
+                      />
+
+                      <span>
+                        {bank}
+                      </span>
+
+                      <b>
+                        →
+                      </b>
+                    </button>
+                  )
+                )}
+              </div>
+
+            </section>
+          </main>
+        </div>
+
+        <Styles />
+      </>
+    );
+  }
+
+  /* =======================================================
+     START PAYMENT SCREEN
 ======================================================= */
 
   return (
     <>
-      <div className="ideal">
-        <Header />
+      <div className="payment-root">
+        <PaymentHeader
+          amount={amount}
+        />
 
-        <main className="banks-screen">
-          <section className="banks-container">
+        <main className="start-main">
 
-            <button
-              className="back-button"
-              onClick={() =>
-                setStartScreen(true)
-              }
-            >
-              ← Back
-            </button>
+          <button
+            className="cancel-link"
+            onClick={cancel}
+          >
+            Cancel
+          </button>
 
-            <div className="banks-heading">
+          <div className="payment-options">
+
+            {/* QR LEFT */}
+            <section className="qr-section">
+
+              <div className="qr-frame">
+                <img
+                  src={QR_IMAGE}
+                  alt=""
+                  className="qr-image"
+                />
+              </div>
+
               <h1>
-                Select your bank
+                Scan with your
+                <br />
+                banking app to pay
               </h1>
 
-              <p>
-                Choose your bank to
-                continue.
-              </p>
-            </div>
+            </section>
 
-            <div className="banks-grid">
-              {BANKS.map((bank) => (
+            {/* DIVIDER */}
+            <div className="vertical-divider" />
+
+            {/* INTERNET BANKING RIGHT */}
+            <section className="internet-section">
+
+              <div className="internet-content">
+
+                <h1>
+                  Or use internet
+                  <br />
+                  banking
+                </h1>
+
                 <button
-                  key={bank}
-                  className="bank-item"
-                  onClick={() =>
-                    chooseBank(bank)
-                  }
+                  className="select-bank-button"
+                  onClick={() => {
+                    setStartScreen(false);
+                  }}
                 >
-                  <BankLogo
-                    bank={bank}
-                  />
-
-                  <span>
-                    {bank}
-                  </span>
-
-                  <b>
-                    →
-                  </b>
+                  Select your bank
                 </button>
-              ))}
-            </div>
 
-          </section>
+              </div>
+
+            </section>
+
+          </div>
+
         </main>
       </div>
 
@@ -769,7 +959,7 @@ export default function IdealPayment() {
 }
 
 /* =========================================================
-   CSS
+   STYLES
 ========================================================= */
 
 function Styles() {
@@ -784,8 +974,8 @@ function Styles() {
       body,
       #root {
         margin: 0;
-        width: 100%;
         min-height: 100%;
+        width: 100%;
       }
 
       body {
@@ -793,12 +983,13 @@ function Styles() {
       }
 
       button {
-        font-family: ${FONT};
+        font-family: ${BODY_FONT};
       }
 
-      .ideal {
+      .payment-root {
         position: fixed;
         inset: 0;
+
         z-index: 999999;
 
         overflow-y: auto;
@@ -806,49 +997,58 @@ function Styles() {
         background: ${BLACK};
         color: ${TEXT};
 
-        font-family: ${FONT};
+        font-family: ${BODY_FONT};
 
         -webkit-font-smoothing: antialiased;
       }
 
-      /* =====================================
-         HEADER
-      ===================================== */
+      .payment-root * {
+        box-sizing: border-box;
+      }
 
-      .ideal-header {
+      /* ==========================================
+         HEADER
+      ========================================== */
+
+      .payment-header {
         height: 103px;
+
         width: 100%;
 
         display: grid;
-        grid-template-columns: 1fr auto 1fr;
+
+        grid-template-columns:
+          1fr
+          auto
+          1fr;
 
         align-items: center;
 
         padding: 0 28px;
 
         background: ${PINK};
+
+        color: white;
       }
 
-      .header-logo {
-        display: flex;
-        align-items: center;
-        justify-content: flex-start;
-      }
-
-      .header-logo img {
+      .payment-header > img {
         width: 143px;
         height: 53px;
 
         object-fit: contain;
+
+        display: block;
       }
 
-      .merchant-block {
+      .merchant {
         text-align: center;
+
         line-height: 1;
       }
 
       .merchant-name {
         font-size: 27px;
+
         font-weight: 400;
       }
 
@@ -856,48 +1056,64 @@ function Styles() {
         margin-top: 8px;
 
         font-size: 31px;
+
         font-weight: 700;
       }
 
-      .cancel-button {
-        justify-self: end;
+      /* ==========================================
+         START
+      ========================================== */
 
-        border: 0;
-        background: transparent;
+      .start-main {
+        min-height:
+          calc(100dvh - 103px);
 
-        color: white;
+        position: relative;
 
-        font-size: 18px;
-        font-weight: 600;
-
-        cursor: pointer;
-
-        padding: 12px;
-      }
-
-      .cancel-button:hover {
-        opacity: .7;
-      }
-
-      .mobile-cancel {
-        display: none;
-      }
-
-      /* =====================================
-         START SCREEN
-      ===================================== */
-
-      .start-screen {
-        min-height: calc(100dvh - 103px);
-
-        padding: 60px 60px 70px;
+        padding:
+          45px
+          55px
+          70px;
 
         background: ${BLACK};
       }
 
-      .payment-choice {
-        width: min(1120px, 100%);
-        min-height: 560px;
+      .cancel-link {
+        position: relative;
+
+        display: block;
+
+        margin-left: auto;
+        margin-right: auto;
+
+        width: min(1260px, 100%);
+
+        border: 0;
+
+        background: transparent;
+
+        color: ${PINK};
+
+        font-size: 18px;
+
+        font-weight: 600;
+
+        text-align: left;
+
+        cursor: pointer;
+
+        padding: 0;
+
+        margin-bottom: 25px;
+      }
+
+      .payment-options {
+        width: min(
+          1120px,
+          100%
+        );
+
+        min-height: 540px;
 
         margin: 0 auto;
 
@@ -913,7 +1129,7 @@ function Styles() {
         align-items: center;
       }
 
-      .qr-column {
+      .qr-section {
         display: flex;
 
         flex-direction: column;
@@ -925,7 +1141,60 @@ function Styles() {
         text-align: center;
       }
 
-      .internet-column {
+      .qr-frame {
+        width: 326px;
+        height: 340px;
+
+        border-radius: 22px;
+
+        overflow: hidden;
+
+        background: white;
+
+        display: flex;
+
+        align-items: center;
+        justify-content: center;
+
+        flex-shrink: 0;
+      }
+
+      .qr-image {
+        width: 100%;
+        height: 100%;
+
+        display: block;
+
+        object-fit: cover;
+      }
+
+      .qr-section h1,
+      .internet-section h1 {
+        margin: 0;
+
+        color: white;
+
+        font-family: ${HEAD_FONT};
+
+        font-size:
+          clamp(
+            35px,
+            3vw,
+            47px
+          );
+
+        line-height: 1.35;
+
+        font-weight: 600;
+
+        letter-spacing: -.02em;
+      }
+
+      .qr-section h1 {
+        margin-top: 40px;
+      }
+
+      .internet-section {
         height: 100%;
 
         display: flex;
@@ -937,8 +1206,9 @@ function Styles() {
         text-align: center;
       }
 
-      .internet-inner {
+      .internet-content {
         width: 100%;
+
         max-width: 540px;
 
         display: flex;
@@ -952,84 +1222,29 @@ function Styles() {
         text-align: center;
       }
 
-      .qr-column h1,
-      .internet-column h1 {
-        margin: 0;
-
-        color: white;
-
-        font-family: ${HEAD};
-
-        font-size: clamp(
-          35px,
-          3vw,
-          47px
-        );
-
-        line-height: 1.34;
-
-        font-weight: 600;
-
-        letter-spacing: -.02em;
-      }
-
-      .qr-column h1 {
-        margin-top: 42px;
-      }
-
-      .internet-column h1 {
+      .internet-section h1 {
         margin-bottom: 42px;
       }
 
-      .choice-divider {
+      .vertical-divider {
         width: 1px;
+
         height: 410px;
 
-        background: #727272;
+        background: #707070;
 
-        opacity: .7;
+        opacity: .75;
       }
-
-      /* =====================================
-         QR
-      ===================================== */
-
-      .qr-frame {
-        width: 326px;
-        height: 340px;
-
-        border-radius: 22px;
-
-        overflow: hidden;
-
-        background: white;
-
-        flex-shrink: 0;
-
-        display: flex;
-
-        align-items: center;
-        justify-content: center;
-      }
-
-      .qr-image {
-        display: block;
-
-        width: 100%;
-        height: 100%;
-
-        object-fit: cover;
-      }
-
-      /* =====================================
-         SELECT BANK BUTTON
-      ===================================== */
 
       .select-bank-button {
-        width: min(480px, 100%);
+        width: min(
+          480px,
+          100%
+        );
+
         height: 64px;
 
-        border: 1px solid #f2f2f2;
+        border: 1px solid #f1f1f1;
 
         border-radius: 34px;
 
@@ -1038,39 +1253,43 @@ function Styles() {
         color: white;
 
         font-size: 21px;
-        font-weight: 600;
 
-        cursor: pointer;
+        font-weight: 600;
 
         text-align: center;
 
+        cursor: pointer;
+
         transition:
           background .15s ease,
-          color .15s ease,
-          transform .15s ease;
+          color .15s ease;
       }
 
       .select-bank-button:hover {
         background: white;
-        color: ${BLACK};
 
-        transform: translateY(-1px);
+        color: ${BLACK};
       }
 
-      /* =====================================
-         BANK SCREEN
-      ===================================== */
+      /* ==========================================
+         BANKS
+      ========================================== */
 
-      .banks-screen {
-        min-height: calc(100dvh - 103px);
-
-        padding: 48px 20px 70px;
+      .banks-main {
+        min-height:
+          calc(100dvh - 103px);
 
         background: ${BLACK};
+
+        padding:
+          48px
+          20px
+          70px;
       }
 
-      .banks-container {
-        width: min(800px, 100%);
+      .banks-section {
+        width:
+          min(820px, 100%);
 
         margin: 0 auto;
       }
@@ -1078,7 +1297,7 @@ function Styles() {
       .banks-heading {
         text-align: center;
 
-        margin-bottom: 32px;
+        margin-bottom: 30px;
       }
 
       .banks-heading h1 {
@@ -1086,10 +1305,13 @@ function Styles() {
 
         color: white;
 
-        font-family: ${HEAD};
+        font-family: ${HEAD_FONT};
 
         font-size: 42px;
+
         line-height: 1.15;
+
+        font-weight: 600;
       }
 
       .banks-heading p {
@@ -1101,17 +1323,15 @@ function Styles() {
       }
 
       .back-button {
-        display: block;
-
-        margin: 0 0 30px;
-
-        padding: 0;
-
         border: 0;
 
         background: transparent;
 
         color: ${PINK};
+
+        padding: 0;
+
+        margin: 0 0 28px;
 
         font-size: 15px;
 
@@ -1130,13 +1350,15 @@ function Styles() {
         gap: 12px;
       }
 
-      .bank-item {
+      .bank-row {
+        width: 100%;
+
         min-height: 76px;
 
         display: grid;
 
         grid-template-columns:
-          56px
+          58px
           minmax(0, 1fr)
           25px;
 
@@ -1144,13 +1366,13 @@ function Styles() {
 
         gap: 14px;
 
-        padding: 10px 16px;
+        padding: 9px 15px;
 
-        border: 1px solid ${BORDER};
+        border: 1px solid #444;
 
         border-radius: 12px;
 
-        background: #222222;
+        background: #222;
 
         color: white;
 
@@ -1164,24 +1386,25 @@ function Styles() {
           transform .15s ease;
       }
 
-      .bank-item:hover {
-        background: #2a2a2a;
+      .bank-row:hover {
+        background: #292929;
 
         border-color: #707070;
 
-        transform: translateY(-1px);
+        transform:
+          translateY(-1px);
       }
 
-      .bank-item span {
+      .bank-row span {
+        color: white;
+
         font-size: 15px;
 
         font-weight: 400;
-
-        color: white;
       }
 
-      .bank-item b {
-        color: #999;
+      .bank-row b {
+        color: #9a9a9a;
 
         font-size: 20px;
 
@@ -1190,13 +1413,13 @@ function Styles() {
         text-align: right;
       }
 
-      /* =====================================
+      /* ==========================================
          BANK LOGOS
-      ===================================== */
+      ========================================== */
 
       .bank-logo {
-        width: 56px;
-        height: 56px;
+        width: 54px;
+        height: 54px;
 
         display: flex;
 
@@ -1205,7 +1428,7 @@ function Styles() {
 
         background: transparent;
 
-        border-radius: 9px;
+        border-radius: 8px;
 
         overflow: hidden;
       }
@@ -1219,8 +1442,18 @@ function Styles() {
         object-fit: contain;
       }
 
-      .bank-logo.fallback {
-        background: #303030;
+      .bank-logo-fallback {
+        width: 54px;
+        height: 54px;
+
+        display: flex;
+
+        align-items: center;
+        justify-content: center;
+
+        border-radius: 8px;
+
+        background: #333;
 
         color: white;
 
@@ -1229,30 +1462,41 @@ function Styles() {
         font-weight: 600;
       }
 
-      /* =====================================
-         CENTER PAGES
-      ===================================== */
+      /* ==========================================
+         CENTER
+      ========================================== */
 
-      .center-screen {
-        min-height: calc(100dvh - 103px);
+      .center-main {
+        min-height:
+          calc(100dvh - 103px);
 
         display: grid;
 
         place-items: center;
 
-        padding: 35px 20px 70px;
+        padding:
+          35px
+          20px
+          70px;
       }
 
       .payment-card {
-        width: min(570px, 100%);
+        width:
+          min(570px, 100%);
 
-        padding: 38px 42px 42px;
+        padding:
+          38px
+          42px
+          42px;
 
-        border: 1px solid #3e3e3e;
+        border:
+          1px solid #3d3d3d;
 
         border-radius: 18px;
 
-        background: ${PANEL};
+        background: ${CARD};
+
+        color: white;
 
         text-align: center;
 
@@ -1264,21 +1508,22 @@ function Styles() {
       }
 
       .payment-card h1 {
-        margin: 0 0 13px;
+        margin:
+          0 0 13px;
 
         color: white;
 
-        font-family: ${HEAD};
+        font-family: ${HEAD_FONT};
 
         font-size: 37px;
 
         line-height: 1.2;
+
+        font-weight: 600;
       }
 
-      .payment-card p {
+      .payment-card > p {
         margin: 0;
-
-        max-width: 460px;
 
         color: ${MUTED};
 
@@ -1291,19 +1536,38 @@ function Styles() {
         align-self: flex-start;
       }
 
-      .payment-card > .bank-logo {
+      /* ==========================================
+         SELECTED BANK
+      ========================================== */
+
+      .selected-bank-logo {
         width: 82px;
         height: 82px;
 
         margin-bottom: 20px;
+
+        display: flex;
+
+        align-items: center;
+        justify-content: center;
       }
 
-      /* =====================================
-         BUTTONS
-      ===================================== */
+      .selected-bank-logo .bank-logo {
+        width: 82px;
+        height: 82px;
+      }
 
-      .pink-button,
-      .dark-button {
+      .selected-bank-logo .bank-logo-fallback {
+        width: 82px;
+        height: 82px;
+      }
+
+      /* ==========================================
+         BUTTONS
+      ========================================== */
+
+      .primary-button,
+      .secondary-button {
         width: 100%;
 
         min-height: 58px;
@@ -1319,7 +1583,7 @@ function Styles() {
         cursor: pointer;
       }
 
-      .pink-button {
+      .primary-button {
         border: 0;
 
         background: ${PINK};
@@ -1327,36 +1591,39 @@ function Styles() {
         color: white;
       }
 
-      .pink-button:hover {
+      .primary-button:hover {
         background: #e00076;
       }
 
-      .dark-button {
-        border: 1px solid #555;
+      .secondary-button {
+        border:
+          1px solid #555;
 
         background: #2b2b2b;
 
         color: white;
       }
 
-      .dark-button:hover {
+      .secondary-button:hover {
         background: #333;
       }
 
-      /* =====================================
+      /* ==========================================
          TRANSFER
-      ===================================== */
+      ========================================== */
 
       .transfer-card {
-        width: min(700px, 100%);
+        width:
+          min(700px, 100%);
       }
 
-      .transfer-box {
+      .transfer-list {
         width: 100%;
 
         margin-top: 28px;
 
-        border: 1px solid #404040;
+        border:
+          1px solid #404040;
 
         border-radius: 12px;
 
@@ -1377,9 +1644,11 @@ function Styles() {
 
         gap: 12px;
 
-        padding: 10px 15px;
+        padding:
+          10px 15px;
 
-        border-bottom: 1px solid #353535;
+        border-bottom:
+          1px solid #353535;
 
         text-align: left;
       }
@@ -1388,7 +1657,7 @@ function Styles() {
         border-bottom: 0;
       }
 
-      .transfer-row span {
+      .transfer-row > span {
         color: #999;
 
         font-size: 12px;
@@ -1418,9 +1687,9 @@ function Styles() {
         white-space: nowrap;
       }
 
-      /* =====================================
+      /* ==========================================
          LOADING
-      ===================================== */
+      ========================================== */
 
       .loading-card {
         min-height: 300px;
@@ -1446,11 +1715,11 @@ function Styles() {
           spin .75s linear infinite;
       }
 
-      /* =====================================
+      /* ==========================================
          INTRO
-      ===================================== */
+      ========================================== */
 
-      .ideal-loading {
+      .loading-screen {
         position: fixed;
 
         inset: 0;
@@ -1464,15 +1733,25 @@ function Styles() {
         background: white;
       }
 
-      .ideal-loading img {
+      .loading-content {
+        display: flex;
+
+        flex-direction: column;
+
+        align-items: center;
+
+        gap: 22px;
+      }
+
+      .loading-content img {
         width: 125px;
+
+        height: auto;
+
+        display: block;
       }
 
       .loading-dots {
-        position: absolute;
-
-        top: calc(50% + 60px);
-
         display: flex;
 
         gap: 5px;
@@ -1484,10 +1763,10 @@ function Styles() {
 
         border-radius: 50%;
 
-        background: #68747b;
+        background: #68727a;
 
         animation:
-          dots 1s infinite ease-in-out;
+          dots 1s ease-in-out infinite;
       }
 
       .loading-dots span:nth-child(2) {
@@ -1498,67 +1777,105 @@ function Styles() {
         animation-delay: .3s;
       }
 
-      /* =====================================
+      /* ==========================================
          SUCCESS
-      ===================================== */
+      ========================================== */
 
       .success-screen {
-        min-height: 100dvh;
+        position: fixed;
+
+        inset: 0;
+
+        z-index: 1000000;
 
         display: grid;
 
         place-items: center;
 
+        overflow: hidden;
+
         background: ${BLACK};
 
         color: white;
 
-        font-family: ${FONT};
+        font-family: ${BODY_FONT};
       }
 
-      .success-box {
-        width: min(520px, calc(100% - 40px));
+      .success-content {
+        position: relative;
+
+        z-index: 2;
+
+        width:
+          min(560px, calc(100% - 40px));
+
+        display: flex;
+
+        flex-direction: column;
+
+        align-items: center;
 
         text-align: center;
       }
 
-      .success-box img {
-        width: min(280px, 60vw);
+      .success-image {
+        width:
+          min(290px, 55vw);
 
-        height: min(280px, 60vw);
+        height:
+          min(290px, 55vw);
 
         object-fit: contain;
 
         display: block;
 
-        margin: 0 auto 10px;
+        margin-bottom: 10px;
       }
 
-      .success-box h1 {
-        margin: 0 0 12px;
+      .success-content h1 {
+        margin:
+          0 0 12px;
 
-        font-family: ${HEAD};
+        font-family: ${HEAD_FONT};
 
-        font-size: 42px;
+        font-size:
+          clamp(32px, 5vw, 44px);
+
+        line-height: 1.15;
+
+        font-weight: 600;
       }
 
-      .success-box p {
-        margin: 0 0 25px;
+      .success-content p {
+        margin:
+          0 0 25px;
 
         color: ${MUTED};
 
         font-size: 15px;
       }
 
-      .success-box .pink-button {
-        width: min(450px, 100%);
+      .success-content .primary-button {
+        width:
+          min(480px, 100%);
 
-        margin: 0 auto;
+        margin-top: 0;
       }
 
-      /* =====================================
+      .confetti {
+        position: absolute;
+
+        inset: 0;
+
+        width: 100%;
+        height: 100%;
+
+        pointer-events: none;
+      }
+
+      /* ==========================================
          ANIMATIONS
-      ===================================== */
+      ========================================== */
 
       @keyframes spin {
         to {
@@ -1580,18 +1897,18 @@ function Styles() {
         }
       }
 
-      /* =====================================
+      /* ==========================================
          TABLET
-      ===================================== */
+      ========================================== */
 
       @media (max-width: 950px) {
 
-        .start-screen {
+        .start-main {
           padding-left: 30px;
           padding-right: 30px;
         }
 
-        .payment-choice {
+        .payment-options {
           column-gap: 45px;
         }
 
@@ -1600,37 +1917,36 @@ function Styles() {
           height: 292px;
         }
 
-        .qr-column h1,
-        .internet-column h1 {
+        .qr-section h1,
+        .internet-section h1 {
           font-size: 34px;
         }
 
       }
 
-      /* =====================================
+      /* ==========================================
          MOBILE
-      ===================================== */
+      ========================================== */
 
       @media (max-width: 700px) {
 
-        .ideal-header {
+        .payment-header {
           height: 82px;
 
           grid-template-columns:
-            auto
-            1fr;
+            1fr
+            auto;
 
-          padding: 0 16px;
+          padding:
+            0 16px;
         }
 
-        .header-logo img {
+        .payment-header > img {
           width: 95px;
           height: 39px;
         }
 
-        .merchant-block {
-          justify-self: end;
-
+        .merchant {
           text-align: right;
         }
 
@@ -1644,41 +1960,27 @@ function Styles() {
           font-size: 20px;
         }
 
-        .cancel-button {
-          display: none;
+        .start-main {
+          min-height:
+            calc(100dvh - 82px);
+
+          padding:
+            20px
+            20px
+            35px;
         }
 
-        .mobile-cancel {
-          display: block;
+        .cancel-link {
+          width: 100%;
 
-          position: absolute;
-
-          top: 18px;
-          left: 17px;
-
-          z-index: 10;
-
-          border: 0;
-
-          background: transparent;
-
-          color: ${PINK};
+          margin-bottom: 10px;
 
           font-size: 16px;
-
-          font-weight: 600;
-
-          cursor: pointer;
         }
 
-        .start-screen {
-          min-height: calc(100dvh - 82px);
-
-          padding: 65px 20px 30px;
-        }
-
-        .payment-choice {
-          min-height: 0;
+        .payment-options {
+          min-height:
+            calc(100dvh - 135px);
 
           width: 100%;
 
@@ -1687,28 +1989,35 @@ function Styles() {
           flex-direction: column;
         }
 
-        .qr-column {
+        .qr-section {
           display: none;
         }
 
-        .choice-divider {
+        .vertical-divider {
           display: none;
         }
 
-        .internet-column {
-          min-height: calc(100dvh - 150px);
-
+        .internet-section {
           width: 100%;
+
+          min-height:
+            calc(100dvh - 145px);
+
+          display: flex;
+
+          align-items: center;
+
+          justify-content: center;
         }
 
-        .internet-inner {
+        .internet-content {
           width: 100%;
 
           max-width: 500px;
         }
 
-        .internet-column h1 {
-          margin-bottom: 35px;
+        .internet-section h1 {
+          margin-bottom: 34px;
 
           font-size: 31px;
         }
@@ -1721,10 +2030,14 @@ function Styles() {
           font-size: 18px;
         }
 
-        .banks-screen {
-          min-height: calc(100dvh - 82px);
+        .banks-main {
+          min-height:
+            calc(100dvh - 82px);
 
-          padding: 30px 14px 45px;
+          padding:
+            30px
+            14px
+            45px;
         }
 
         .banks-heading h1 {
@@ -1735,14 +2048,21 @@ function Styles() {
           grid-template-columns: 1fr;
         }
 
-        .center-screen {
-          min-height: calc(100dvh - 82px);
+        .center-main {
+          min-height:
+            calc(100dvh - 82px);
 
-          padding: 25px 14px 45px;
+          padding:
+            25px
+            14px
+            45px;
         }
 
         .payment-card {
-          padding: 30px 18px 25px;
+          padding:
+            30px
+            18px
+            25px;
         }
 
         .payment-card h1 {
@@ -1765,7 +2085,7 @@ function Styles() {
 
       @media (max-width: 420px) {
 
-        .header-logo img {
+        .payment-header > img {
           width: 86px;
         }
 
@@ -1777,14 +2097,15 @@ function Styles() {
           font-size: 18px;
         }
 
-        .bank-item {
+        .bank-row {
           grid-template-columns:
             48px
             minmax(0, 1fr)
             20px;
         }
 
-        .bank-logo {
+        .bank-logo,
+        .bank-logo-fallback {
           width: 48px;
           height: 48px;
         }
