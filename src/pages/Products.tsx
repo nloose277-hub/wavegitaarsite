@@ -3,68 +3,21 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { SlidersHorizontal, X, ChevronRight, Check } from 'lucide-react';
 import { Seo } from '../components/Seo';
 import { ProductCard } from '../components/ProductCard';
-import { fetchProducts, fetchCategories, fetchProductImages, fetchReviewSummaries } from '../lib/api';
+import { fetchProducts, fetchCategories, fetchReviewSummaries } from '../lib/api';
 import type { Product, Category } from '../lib/types';
 import type { ReviewSummary } from '../lib/api';
+import { getLocalProductImages } from '../lib/productImages';
 
-// Local product photos committed to public/product-images.
-// The product name is used deliberately so the files are linked to the
-// correct product instead of relying on the old broken Supabase URLs.
-function getLocalProductImages(product: Product) {
-  const name = product.name.toLowerCase();
+function attachLocalImages(products: Product[]): Product[] {
+  return products.map((product) => {
+    // IMPORTANT: local images completely replace the old Supabase image list.
+    // We do not fall back to the old broken external URLs when a local set exists.
+    const localImages = getLocalProductImages(product);
 
-  const map: Array<{ match: string[]; folder: string; count: number }> = [
-    { match: ['player stratocaster', 'black'], folder: '01-player-stratocaster-black', count: 3 },
-    { match: ['american professional ii stratocaster'], folder: '03-american-professional-ii-stratocaster', count: 3 },
-    { match: ['player telecaster', 'butterscotch blonde'], folder: '04-player-telecaster-butterscotch-blonde', count: 2 },
-    { match: ['player jazzmaster', 'polar white'], folder: '06-player-jazzmaster-polar-white', count: 2 },
-    { match: ['player precision bass', 'black'], folder: '07-player-precision-bass-black', count: 3 },
-    { match: ['player jazz bass', 'polar white'], folder: '08-player-jazz-bass-polar-white', count: 3 },
-    { match: ['mustang lt25'], folder: '09-mustang-lt25', count: 3 },
-    { match: ['tone master deluxe reverb'], folder: '10-tone-master-deluxe-reverb', count: 1 },
-    { match: ['9050'], folder: '11-fender-9050-bass-strings', count: 1 },
-    { match: ['locking tuners', 'chrome'], folder: '12-locking-tuners-chrome', count: 1 },
-  ];
-
-  const found = map.find(({ match }) => match.every((part) => name.includes(part)));
-  if (!found) return [];
-
-  return Array.from({ length: found.count }, (_, index) => ({
-    id: `local-${product.id}-${index + 1}`,
-    product_id: product.id,
-    url: `/product-images/${found.folder}/${index + 1}.jpg`,
-    alt: product.name,
-    sort_order: index,
-  }));
-}
-
-async function loadImagesSafely(products: Product[]): Promise<Product[]> {
-  // Do not request every image at exactly the same moment. A failed request for
-  // one product must also never make the complete product grid fail.
-  const result: Product[] = [];
-  const queue = [...products];
-  const worker = async () => {
-    while (queue.length) {
-      const product = queue.shift();
-      if (!product) return;
-      try {
-        const localImages = getLocalProductImages(product);
-        if (localImages.length > 0) {
-          result.push({ ...product, images: localImages });
-          continue;
-        }
-
-        const imgs = await fetchProductImages(product.id);
-        result.push({ ...product, images: imgs });
-      } catch {
-        // Keep the product visible even when its image request fails.
-        result.push({ ...product, images: product.images ?? [] });
-      }
-    }
-  };
-
-  await Promise.all([worker(), worker(), worker(), worker()]);
-  return result;
+    return localImages.length > 0
+      ? { ...product, images: localImages }
+      : { ...product, images: [] };
+  });
 }
 
 export default function Products() {
@@ -74,6 +27,7 @@ export default function Products() {
   const [reviewSummaries, setReviewSummaries] = useState<Record<string, ReviewSummary>>({});
   const [loading, setLoading] = useState(true);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+
   const activeCategory = searchParams.get('category') ?? '';
   const sortBy = searchParams.get('sort') ?? 'default';
 
@@ -82,6 +36,7 @@ export default function Products() {
 
     (async () => {
       setLoading(true);
+
       try {
         const [cats, prods, rsums] = await Promise.all([
           fetchCategories(),
@@ -89,16 +44,18 @@ export default function Products() {
           fetchReviewSummaries(),
         ]);
 
-        const productsWithImages = await loadImagesSafely(prods);
-
         if (cancelled) return;
+
         setCategories(cats);
         setReviewSummaries(rsums);
-        setProducts(productsWithImages);
+
+        // THIS is the only image source used by the product grid.
+        setProducts(attachLocalImages(prods));
       } catch {
         if (!cancelled) {
           setCategories([]);
           setProducts([]);
+          setReviewSummaries({});
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -114,26 +71,35 @@ export default function Products() {
     let list = [...products];
 
     if (activeCategory) {
-      const cat = categories.find((c) => c.slug === activeCategory);
-      if (cat) list = list.filter((p) => p.category_id === cat.id);
+      const category = categories.find((c) => c.slug === activeCategory);
+      if (category) {
+        list = list.filter((p) => p.category_id === category.id);
+      }
     }
 
-    if (sortBy === 'price-asc') list.sort((a, b) => a.price - b.price);
-    if (sortBy === 'price-desc') list.sort((a, b) => b.price - a.price);
-    if (sortBy === 'name') list.sort((a, b) => a.name.localeCompare(b.name));
+    if (sortBy === 'price-asc') {
+      list.sort((a, b) => a.price - b.price);
+    } else if (sortBy === 'price-desc') {
+      list.sort((a, b) => b.price - a.price);
+    } else if (sortBy === 'name') {
+      list.sort((a, b) => a.name.localeCompare(b.name));
+    }
 
     return list;
   }, [products, categories, activeCategory, sortBy]);
 
   const activeCatName =
     categories.find((c) => c.slug === activeCategory)?.name ?? 'Alle gitaren';
+
   const activeCatDesc =
     categories.find((c) => c.slug === activeCategory)?.description ?? null;
 
   const setParam = (key: string, value: string) => {
     const next = new URLSearchParams(searchParams);
+
     if (value) next.set(key, value);
     else next.delete(key);
+
     setSearchParams(next);
   };
 
@@ -143,6 +109,7 @@ export default function Products() {
         <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-stone-400">
           Categorieën
         </h3>
+
         <ul className="space-y-0.5">
           <li>
             <button
@@ -160,21 +127,22 @@ export default function Products() {
               {!activeCategory && <Check className="h-4 w-4" />}
             </button>
           </li>
-          {categories.map((c) => (
-            <li key={c.id}>
+
+          {categories.map((category) => (
+            <li key={category.id}>
               <button
                 onClick={() => {
-                  setParam('category', c.slug);
+                  setParam('category', category.slug);
                   setShowMobileFilters(false);
                 }}
                 className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors ${
-                  activeCategory === c.slug
+                  activeCategory === category.slug
                     ? 'bg-accent-600 text-white'
                     : 'text-stone-600 hover:bg-stone-100'
                 }`}
               >
-                {c.name}
-                {activeCategory === c.slug && <Check className="h-4 w-4" />}
+                {category.name}
+                {activeCategory === category.slug && <Check className="h-4 w-4" />}
               </button>
             </li>
           ))}
@@ -237,17 +205,18 @@ export default function Products() {
             >
               Alle
             </button>
-            {categories.map((c) => (
+
+            {categories.map((category) => (
               <button
-                key={c.id}
-                onClick={() => setParam('category', c.slug)}
+                key={category.id}
+                onClick={() => setParam('category', category.slug)}
                 className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition-all ${
-                  activeCategory === c.slug
+                  activeCategory === category.slug
                     ? 'bg-accent-600 text-white'
                     : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                 }`}
               >
-                {c.name}
+                {category.name}
               </button>
             ))}
           </div>
@@ -269,8 +238,10 @@ export default function Products() {
                   onClick={() => setShowMobileFilters(true)}
                   className="flex items-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-700 md:hidden"
                 >
-                  <SlidersHorizontal className="h-4 w-4" /> Filters
+                  <SlidersHorizontal className="h-4 w-4" />
+                  Filters
                 </button>
+
                 <select
                   value={sortBy}
                   onChange={(e) => setParam('sort', e.target.value)}
@@ -301,12 +272,11 @@ export default function Products() {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
-                  {filtered.map((p) => (
+                  {filtered.map((product) => (
                     <ProductCard
-                      key={p.id}
-                      product={p}
-                      image={p.images?.[0]?.url}
-                      reviewSummary={reviewSummaries[p.id]}
+                      key={product.id}
+                      product={product}
+                      reviewSummary={reviewSummaries[product.id]}
                     />
                   ))}
                 </div>

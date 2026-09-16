@@ -4,10 +4,10 @@ import { ShoppingBag, Star, Check } from 'lucide-react';
 import type { Product } from '../lib/types';
 import { formatPrice, getStockStatus } from '../lib/types';
 import { useCart } from '../lib/cart';
+import { getPrimaryLocalProductImage } from '../lib/productImages';
 
 export function ProductCard({
   product,
-  image,
   reviewSummary,
 }: {
   product: Product;
@@ -17,26 +17,8 @@ export function ProductCard({
   const { add } = useCart();
   const stock = getStockStatus(product.stock);
 
-  const originalImage = image ?? product.images?.[0]?.url ?? '';
-  const [imageSrc, setImageSrc] = useState(originalImage);
-  const [imageFailed, setImageFailed] = useState(false);
-  const [added, setAdded] = useState(false);
-
-  useEffect(() => {
-    setImageSrc(originalImage);
-    setImageFailed(false);
-  }, [originalImage]);
-
-  const handleImageError = () => {
-    // Retry once with a cache-busting query. If the URL itself is invalid,
-    // show the normal placeholder instead of breaking the product card.
-    if (imageSrc && !imageSrc.includes('__wave_retry=')) {
-      const separator = imageSrc.includes('?') ? '&' : '?';
-      setImageSrc(`${imageSrc}${separator}__wave_retry=${Date.now()}`);
-      return;
-    }
-    setImageFailed(true);
-  };
+  // Local product photo ALWAYS wins.
+  const img = getPrimaryLocalProductImage(product);
 
   const reviewCount = reviewSummary?.count ?? 0;
   const avgRating = reviewSummary?.avg ?? 0;
@@ -45,12 +27,21 @@ export function ProductCard({
     ? Math.round(((product.compare_price! - product.price) / product.compare_price!) * 100)
     : 0;
 
-  const handleAdd = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    add(product, imageSrc || originalImage, 1);
+  const [added, setAdded] = useState(false);
+  const [imageSrc, setImageSrc] = useState(img);
+
+  useEffect(() => {
+    setImageSrc(img);
+  }, [img]);
+
+  const handleAdd = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    add(product, imageSrc, 1);
     setAdded(true);
-    setTimeout(() => setAdded(false), 1500);
+
+    window.setTimeout(() => setAdded(false), 1500);
   };
 
   return (
@@ -58,15 +49,13 @@ export function ProductCard({
       to={`/products/${product.slug}`}
       className="group flex flex-col overflow-hidden rounded-lg border border-stone-200 bg-white transition-all duration-300 hover:border-stone-300 hover:shadow-md"
     >
-      <div className="relative aspect-square overflow-hidden bg-stone-50">
-        {imageSrc && !imageFailed ? (
+      <div className="relative aspect-square overflow-hidden bg-white">
+        {imageSrc ? (
           <img
             src={imageSrc}
             alt={product.name}
-            loading="eager"
+            loading="lazy"
             decoding="async"
-            fetchPriority="auto"
-            onError={handleImageError}
             className="h-full w-full object-contain transition-transform duration-500 ease-out group-hover:scale-105"
           />
         ) : (
@@ -81,6 +70,7 @@ export function ProductCard({
               -{discountPercent}%
             </span>
           )}
+
           {product.badge && (
             <span className="rounded bg-accent-600 px-2 py-0.5 text-xs font-bold text-white">
               {product.badge}
@@ -100,18 +90,18 @@ export function ProductCard({
       <div className="flex flex-1 flex-col p-3.5">
         <p className="text-xs font-medium text-stone-400">{product.brand}</p>
 
-        <h3 className="mt-0.5 text-sm font-semibold leading-snug text-stone-900 line-clamp-2 transition-colors group-hover:text-accent-700">
+        <h3 className="mt-0.5 line-clamp-2 text-sm font-semibold leading-snug text-stone-900 transition-colors group-hover:text-accent-700">
           {product.name}
         </h3>
 
         {reviewCount > 0 && (
           <div className="mt-1.5 flex items-center gap-1">
             <div className="flex">
-              {[1, 2, 3, 4, 5].map((s) => (
+              {[1, 2, 3, 4, 5].map((star) => (
                 <Star
-                  key={s}
+                  key={star}
                   className={`h-3 w-3 ${
-                    s <= Math.round(avgRating)
+                    star <= Math.round(avgRating)
                       ? 'fill-amber-400 text-amber-400'
                       : 'text-stone-200'
                   }`}
@@ -136,6 +126,7 @@ export function ProductCard({
             <span className="text-base font-bold text-stone-900">
               {formatPrice(product.price)}
             </span>
+
             {hasDiscount && (
               <span className="text-xs text-stone-400 line-through">
                 {formatPrice(product.compare_price!)}
@@ -145,7 +136,7 @@ export function ProductCard({
 
           <button
             onClick={handleAdd}
-            disabled={product.stock === 0}
+            disabled={product.stock === 0 || !imageSrc}
             className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-all disabled:opacity-30 ${
               added
                 ? 'border-green-500 bg-green-500 text-white'
