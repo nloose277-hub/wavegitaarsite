@@ -1,6 +1,6 @@
-import type { Product } from '../lib/types';
+import type { Product } from './types';
 
-export type LocalProductImage = {
+export type ProductImageSource = {
   id: string;
   product_id: string;
   url: string;
@@ -8,106 +8,87 @@ export type LocalProductImage = {
   sort_order: number;
 };
 
-type Rule = {
+type ImageSet = {
   match: string[];
-  folder: string;
-  files: string[];
+  files?: string[];
+  urls?: string[];
 };
 
-const RULES: Rule[] = [
-  {
-    match: ['player stratocaster', 'black'],
-    folder: '01-player-stratocaster-black',
-    files: ['1.jpg', '2.jpg', '3.jpg'],
-  },
-  {
-    match: ['player stratocaster', 'olympic pearl'],
-    folder: '02-player-stratocaster-olympic-pearl',
-    files: [],
-  },
-  {
-    match: ['american professional ii stratocaster'],
-    folder: '03-american-professional-ii-stratocaster',
-    files: ['1.jpg', '2.jpg', '3.jpg'],
-  },
-  {
-    match: ['player telecaster', 'butterscotch blonde'],
-    folder: '04-player-telecaster-butterscotch-blonde',
-    files: ['1.jpg', '2.jpg'],
-  },
-  {
-    match: ['american professional ii telecaster'],
-    folder: '05-american-professional-ii-telecaster',
-    files: [
-      'REVIEW-do-not-use-yet-b-detail.jpg',
-      'REVIEW-do-not-use-yet-back.jpg',
-    ],
-  },
-  {
-    match: ['player jazzmaster', 'polar white'],
-    folder: '06-player-jazzmaster-polar-white',
-    files: ['1.jpg', '2.jpg'],
-  },
-  {
-    match: ['player precision bass', 'black'],
-    folder: '07-player-precision-bass-black',
-    files: ['1.jpg', '2.jpg', '3.jpg'],
-  },
-  {
-    match: ['player jazz bass', 'polar white'],
-    folder: '08-player-jazz-bass-polar-white',
-    files: ['1.jpg', '2.jpg', '3.jpg'],
-  },
-  {
-    match: ['mustang lt25'],
-    folder: '09-mustang-lt25',
-    files: ['1.jpg', '2.jpg', '3.jpg'],
-  },
-  {
-    match: ['tone master deluxe reverb'],
-    folder: '10-tone-master-deluxe-reverb',
-    files: ['1.jpg'],
-  },
-  {
-    match: ['9050'],
-    folder: '11-fender-9050-bass-strings',
-    files: ['1.jpg'],
-  },
-  {
-    match: ['locking tuners', 'chrome'],
-    folder: '12-locking-tuners-chrome',
-    files: ['1.jpg'],
-  },
+// One source of truth for EVERY storefront/product-page image.
+// Exact model matching prevents Player and Player II images from being mixed.
+const IMAGE_SETS: ImageSet[] = [
+  { match: ['player stratocaster', 'black'], files: [
+    '01-player-stratocaster-black/1.jpg',
+    '01-player-stratocaster-black/2.jpg',
+    '01-player-stratocaster-black/3.jpg',
+  ]},
+  { match: ['player stratocaster', 'olympic pearl'], files: [] },
+  { match: ['american professional ii stratocaster'], files: [
+    '03-american-professional-ii-stratocaster/1.jpg',
+    '03-american-professional-ii-stratocaster/2.jpg',
+    '03-american-professional-ii-stratocaster/3.jpg',
+  ]},
+  { match: ['player ii telecaster', 'butterscotch blonde'], urls: [
+    'https://nl.fender.com/cdn/shop/files/0140552550_fen_ins_frt_1_rr.png?v=1728470194&width=1445',
+  ]},
+  { match: ['player telecaster', 'butterscotch blonde'], files: [
+    '04-player-telecaster-butterscotch-blonde/1.jpg',
+    '04-player-telecaster-butterscotch-blonde/2.jpg',
+  ]},
+  { match: ['american professional ii telecaster'], urls: [
+    'https://nl.fender.com/cdn/shop/files/0113942750_fen_ins_frt_1_rr.png?v=1742168903&width=1445',
+  ]},
+  { match: ['player jazzmaster', 'polar white'], files: [
+    '06-player-jazzmaster-polar-white/1.jpg',
+    '06-player-jazzmaster-polar-white/2.jpg',
+  ]},
+  { match: ['player precision bass', 'black'], files: [
+    '07-player-precision-bass-black/1.jpg',
+    '07-player-precision-bass-black/2.jpg',
+    '07-player-precision-bass-black/3.jpg',
+  ]},
+  { match: ['player jazz bass', 'polar white'], files: [
+    '08-player-jazz-bass-polar-white/1.jpg',
+    '08-player-jazz-bass-polar-white/2.jpg',
+    '08-player-jazz-bass-polar-white/3.jpg',
+  ]},
+  { match: ['mustang lt25'], files: [
+    '09-mustang-lt25/1.jpg',
+    '09-mustang-lt25/2.jpg',
+    '09-mustang-lt25/3.jpg',
+  ]},
+  { match: ['tone master deluxe reverb'], files: ['10-tone-master-deluxe-reverb/1.jpg'] },
+  { match: ['9050'], files: ['11-fender-9050-bass-strings/1.jpg'] },
+  { match: ['locking tuners', 'chrome'], files: ['12-locking-tuners-chrome/1.jpg'] },
 ];
 
-function normalize(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/&/g, 'and')
-    .replace(/[–—-]/g, ' ')
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+function getSet(product: Pick<Product, 'name'>): ImageSet | undefined {
+  const name = product.name.toLowerCase().trim();
+  return IMAGE_SETS.find(({ match }) => match.every((part) => name.includes(part)));
 }
 
-export function getLocalProductImages(product: Product): LocalProductImage[] {
-  const name = normalize(product.name);
+export function getProductImageUrls(product: Pick<Product, 'name'>): string[] {
+  const set = getSet(product);
+  if (!set) return [];
+  if (set.urls) return set.urls;
+  return (set.files ?? []).map((file) => `/product-images/${file}`);
+}
 
-  const rule = RULES.find((candidate) =>
-    candidate.match.every((part) => name.includes(normalize(part)))
-  );
-
-  if (!rule) return [];
-
-  return rule.files.map((file, index) => ({
-    id: `local-${product.id}-${index + 1}`,
+export function getLocalProductImages(product: Pick<Product, 'id' | 'name'>): ProductImageSource[] {
+  return getProductImageUrls(product).map((url, index) => ({
+    id: `wave-local-${product.id}-${index + 1}`,
     product_id: product.id,
-    url: `/product-images/${rule.folder}/${file}`,
+    url,
     alt: product.name,
     sort_order: index,
   }));
 }
 
-export function getPrimaryLocalProductImage(product: Product): string {
-  return getLocalProductImages(product)[0]?.url ?? '';
+export function getPrimaryProductImage(product: Pick<Product, 'name'>): string {
+  return getProductImageUrls(product)[0] ?? '';
+}
+
+export function applyProductImages<T extends Product>(product: T): T {
+  const images = getLocalProductImages(product);
+  return images.length ? ({ ...product, images } as T) : product;
 }

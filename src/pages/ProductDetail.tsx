@@ -8,6 +8,7 @@ import {
 import { Seo, productStructuredData, breadcrumbStructuredData } from '../components/Seo';
 import ProductComparison from '../components/ProductComparison';
 import { ProductCard } from '../components/ProductCard';
+import { ProductImageGallery } from '../components/ProductImageGallery';
 import { fetchProductBySlug, fetchProductImages, fetchReviews, createReview, fetchProducts, fetchReviewSummaries } from '../lib/api';
 import type { Product, ProductImage, Review, ColorOption } from '../lib/types';
 import type { ReviewSummary } from '../lib/api';
@@ -258,33 +259,10 @@ export default function ProductDetail() {
       <div className="bg-white">
         <div className="container-content py-6 md:py-10">
           <div className="grid gap-8 md:grid-cols-2 md:gap-12">
-            {/* IMAGE GALLERY */}
-            <div className="md:sticky md:top-24 md:self-start">
-              <div className="group relative overflow-hidden rounded-lg border border-stone-200 bg-stone-50">
-                {images[activeImg] ? (
-                  <>
-                    <img src={images[activeImg].url} alt={images[activeImg].alt ?? product.name} className="aspect-square w-full object-contain" />
-                    <button onClick={() => setLightboxOpen(true)} className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-lg bg-white/90 text-stone-600 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-white shadow-sm" aria-label="Vergroten">
-                      <ZoomIn className="h-4 w-4" />
-                    </button>
-                  </>
-                ) : (
-                  <div className="flex aspect-square w-full items-center justify-center text-stone-300"><ShoppingBag className="h-20 w-20" /></div>
-                )}
-                {hasDiscount && (
-                  <div className="absolute left-0 top-0 rounded-br-lg bg-red-500 px-3 py-1.5 text-sm font-bold text-white">-{discountPercent}%</div>
-                )}
-              </div>
-              {images.length > 1 && (
-                <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                  {images.map((img, i) => (
-                    <button key={img.id} onClick={() => setActiveImg(i)} className={`h-16 w-16 md:h-20 md:w-20 shrink-0 overflow-hidden rounded-lg border-2 bg-stone-50 transition-all ${i === activeImg ? 'border-accent-500' : 'border-stone-200 hover:border-stone-400'}`}>
-                      <img src={img.url} alt={img.alt ?? ''} className="h-full w-full object-contain" />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+    {/* IMAGE GALLERY */}
+<div className="md:sticky md:top-24 md:self-start">
+  <ProductImageGallery product={product} />
+</div>
 
             {/* PURCHASE PANEL — white */}
             <div id="buy-section">
