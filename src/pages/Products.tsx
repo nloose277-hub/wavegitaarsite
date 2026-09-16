@@ -3,44 +3,68 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { SlidersHorizontal, X, ChevronRight, Check } from 'lucide-react';
 import { Seo } from '../components/Seo';
 import { ProductCard } from '../components/ProductCard';
-import { fetchProducts, fetchCategories, fetchReviewSummaries } from '../lib/api';
-import { supabase } from '../lib/supabase';
+import { fetchProducts, fetchCategories, fetchProductImages, fetchReviewSummaries } from '../lib/api';
 import type { Product, Category } from '../lib/types';
 import type { ReviewSummary } from '../lib/api';
 
-async function loadImagesSafely(products: Product[]): Promise<Product[]> {
-  if (products.length === 0) return products;
+// Local product photos committed to public/product-images.
+// The product name is used deliberately so the files are linked to the
+// correct product instead of relying on the old broken Supabase URLs.
+function getLocalProductImages(product: Product) {
+  const name = product.name.toLowerCase();
 
-  // IMPORTANT: fetch all product images in one Supabase request.
-  // The old version made a separate request for every product. With many
-  // products, the first few could load while later requests were delayed
-  // or failed. One batched request avoids that problem.
-  const productIds = products.map((p) => p.id);
+  const map: Array<{ match: string[]; folder: string; count: number }> = [
+    { match: ['player stratocaster', 'black'], folder: '01-player-stratocaster-black', count: 3 },
+    { match: ['american professional ii stratocaster'], folder: '03-american-professional-ii-stratocaster', count: 3 },
+    { match: ['player telecaster', 'butterscotch blonde'], folder: '04-player-telecaster-butterscotch-blonde', count: 2 },
+    { match: ['player jazzmaster', 'polar white'], folder: '06-player-jazzmaster-polar-white', count: 2 },
+    { match: ['player precision bass', 'black'], folder: '07-player-precision-bass-black', count: 3 },
+    { match: ['player jazz bass', 'polar white'], folder: '08-player-jazz-bass-polar-white', count: 3 },
+    { match: ['mustang lt25'], folder: '09-mustang-lt25', count: 3 },
+    { match: ['tone master deluxe reverb'], folder: '10-tone-master-deluxe-reverb', count: 1 },
+    { match: ['9050'], folder: '11-fender-9050-bass-strings', count: 1 },
+    { match: ['locking tuners', 'chrome'], folder: '12-locking-tuners-chrome', count: 1 },
+  ];
 
-  const { data: imageRows, error } = await supabase
-    .from('product_images')
-    .select('*')
-    .in('product_id', productIds)
-    .order('sort_order', { ascending: true });
+  const found = map.find(({ match }) => match.every((part) => name.includes(part)));
+  if (!found) return [];
 
-  if (error) {
-    // Keep every product visible if the image query itself fails.
-    return products.map((p) => ({ ...p, images: p.images ?? [] }));
-  }
-
-  const imagesByProduct: Record<string, any[]> = {};
-
-  for (const image of imageRows ?? []) {
-    if (!imagesByProduct[image.product_id]) {
-      imagesByProduct[image.product_id] = [];
-    }
-    imagesByProduct[image.product_id].push(image);
-  }
-
-  return products.map((product) => ({
-    ...product,
-    images: imagesByProduct[product.id] ?? [],
+  return Array.from({ length: found.count }, (_, index) => ({
+    id: `local-${product.id}-${index + 1}`,
+    product_id: product.id,
+    url: `/product-images/${found.folder}/${index + 1}.jpg`,
+    alt: product.name,
+    sort_order: index,
   }));
+}
+
+async function loadImagesSafely(products: Product[]): Promise<Product[]> {
+  // Do not request every image at exactly the same moment. A failed request for
+  // one product must also never make the complete product grid fail.
+  const result: Product[] = [];
+  const queue = [...products];
+  const worker = async () => {
+    while (queue.length) {
+      const product = queue.shift();
+      if (!product) return;
+      try {
+        const localImages = getLocalProductImages(product);
+        if (localImages.length > 0) {
+          result.push({ ...product, images: localImages });
+          continue;
+        }
+
+        const imgs = await fetchProductImages(product.id);
+        result.push({ ...product, images: imgs });
+      } catch {
+        // Keep the product visible even when its image request fails.
+        result.push({ ...product, images: product.images ?? [] });
+      }
+    }
+  };
+
+  await Promise.all([worker(), worker(), worker(), worker()]);
+  return result;
 }
 
 export default function Products() {
