@@ -35,8 +35,10 @@ const IMAGE_SETS: ImageSet[] = [
     '04-player-telecaster-butterscotch-blonde/1.jpg',
     '04-player-telecaster-butterscotch-blonde/2.jpg',
   ]},
-  { match: ['american professional ii telecaster'], urls: [
-    'https://nl.fender.com/cdn/shop/files/0113942750_fen_ins_frt_1_rr.png?v=1742168903&width=1445',
+  { match: ['american professional ii telecaster'], files: [
+    '05-american-professional-ii-telecaster/1.jpg',
+    '05-american-professional-ii-telecaster/2.jpg',
+    '05-american-professional-ii-telecaster/3.jpg',
   ]},
   { match: ['player jazzmaster', 'polar white'], files: [
     '06-player-jazzmaster-polar-white/1.jpg',
