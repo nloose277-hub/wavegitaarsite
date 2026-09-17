@@ -599,7 +599,7 @@ export default function IdealPayment() {
       {
         label: 'IBAN',
         value:
-          'NL19 QNTO 6025 6339 88',
+          'NL19 QNTO 6026 6339 88',
         key: 'iban',
       },
       {
